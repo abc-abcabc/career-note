@@ -309,6 +309,8 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.7); curs
 @keyframes spin { to { transform: rotate(360deg); } }
 
 .brand { display: flex; align-items: center; }
+.brand-link { display: inline-flex; align-items: center; text-decoration: none; cursor: pointer; transition: opacity .2s, transform .2s; }
+.brand-link:hover { opacity: .88; transform: translateY(-1px); }
 .brand-title {
   display: block;
   font-family: var(--font-num);
