@@ -1,0 +1,20 @@
+rules_version = '2';
+
+// 로그인한 사용자는 자기 자신의 문서(users/{uid})와 하위 이력만 읽고 쓸 수 있습니다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{uid} {
+      allow read, write: if request.auth != null && request.auth.uid == uid;
+
+      match /records/{recordId} {
+        allow read, delete: if request.auth != null && request.auth.uid == uid;
+        allow create, update: if request.auth != null
+                              && request.auth.uid == uid
+                              && request.resource.data.title is string
+                              && request.resource.data.title.size() > 0
+                              && request.resource.data.title.size() <= 300
+                              && request.resource.data.category is string;
+      }
+    }
+  }
+}
