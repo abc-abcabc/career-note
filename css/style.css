@@ -64,37 +64,59 @@
 [data-theme="light"] .select,
 [data-theme="light"] .search {
   background: #ffffff !important;
-  color: #0f172a;
-  border-color: #cbd5e1;
+  color: #0f172a !important;
+  border: 1.5px solid #cbd5e1 !important;
 }
 [data-theme="light"] .input:hover,
 [data-theme="light"] .select:hover,
 [data-theme="light"] .search:hover {
-  border-color: #93c5fd;
+  border-color: #3b82f6 !important;
 }
 [data-theme="light"] .input:focus,
 [data-theme="light"] .select:focus {
-  background: #ffffff !important;
+  background: #f0f7ff !important;
   color: #0f172a !important;
   border-color: #2563eb !important;
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18) !important;
 }
 [data-theme="light"] .search:focus-within {
-  background: #ffffff !important;
+  background: #f0f7ff !important;
   border-color: #2563eb !important;
   box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.18) !important;
 }
 [data-theme="light"] .input::placeholder {
-  color: #94a3b8;
+  color: #94a3b8 !important;
+}
+[data-theme="light"] .nav-item {
+  color: #334155 !important;
+}
+[data-theme="light"] .nav-item:hover {
+  background: #f1f5f9 !important;
+  color: #0f172a !important;
 }
 [data-theme="light"] .nav-item.active {
-  background: linear-gradient(90deg, rgba(37, 99, 235, .12), rgba(37, 99, 235, .03));
-  color: #1d4ed8;
-  font-weight: 600;
+  background: #e0edff !important;
+  color: #1d4ed8 !important;
+  font-weight: 700 !important;
+}
+[data-theme="light"] .nav-item.active .ni-text {
+  color: #1d4ed8 !important;
+  font-weight: 700 !important;
 }
 [data-theme="light"] .nav-item.active .ni-count {
-  color: #1d4ed8;
-  background: rgba(37, 99, 235, .15);
+  color: #ffffff !important;
+  background: #2563eb !important;
+  font-weight: 700 !important;
+}
+[data-theme="light"] .nav-item.active::before {
+  content: '';
+  position: absolute;
+  left: -6px;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  border-radius: 4px;
+  background: #2563eb !important;
 }
 [data-theme="light"] select option { background: #ffffff; color: #0f172a; }
 [data-theme="light"] .modal { background: #ffffff; box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.25); border-color: rgba(0, 0, 0, 0.1); }
