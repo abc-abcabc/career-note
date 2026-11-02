@@ -11,7 +11,7 @@ import { SAMPLE_RECORDS } from './sample.js';
 const $ = (s, el = document) => el.querySelector(s);
 const $$ = (s, el = document) => [...el.querySelectorAll(s)];
 
-const DEFAULT_SETTINGS = { name: '', position: '', school: '', subject: '', email: '', phone: '', trainingGoal: 60, alertDays: 90 };
+const DEFAULT_SETTINGS = { name: '', position: '', school: '', subject: '', email: '', phone: '', trainingGoal: 60, alertDays: 90, trainingCategories: ['학교 관련', '학교 외'] };
 const THIS_YEAR = new Date().getFullYear();
 
 const state = {
@@ -24,11 +24,18 @@ const state = {
   filterYear: '',
   filterTag: '',
   filterCat: '',
+  trainingFilterCat: '',
   sort: 'desc',
   goalYear: THIS_YEAR,
   resume: { cats: CATEGORIES.filter((c) => !['dailylog', 'health'].includes(c.id)).map((c) => c.id), from: '', to: '', desc: false, profile: true },
   modal: { cat: null, record: null, fromPicker: false },
 };
+
+function getTrainingCategories() {
+  const cats = state.settings?.trainingCategories;
+  if (Array.isArray(cats) && cats.length > 0) return cats;
+  return ['학교 관련', '학교 외'];
+}
 
 let store = null;
 let unsubscribe = null;
@@ -220,6 +227,10 @@ function applyFilters(list) {
       }
       if (state.filterCat && r.category !== state.filterCat) return false;
       if (state.filterTag && !(r.tags || []).includes(state.filterTag)) return false;
+      if (state.trainingFilterCat && r.category === 'training') {
+        const itemCat = r.trainingCategory || '학교 관련';
+        if (itemCat !== state.trainingFilterCat) return false;
+      }
       if (q && !searchText(r).includes(q)) return false;
       return true;
     })
@@ -427,18 +438,53 @@ function categorySummary(c, scope) {
 
 function viewCategory(catId) {
   const c = CATEGORY_MAP[catId];
-  const scope = state.records.filter((r) => r.category === catId);
-  const list = applyFilters(scope);
+  const allInCat = state.records.filter((r) => r.category === catId);
   const isTraining = catId === 'training';
+  const scope = isTraining && state.trainingFilterCat
+    ? allInCat.filter((r) => (r.trainingCategory || '학교 관련') === state.trainingFilterCat)
+    : allInCat;
+  const list = applyFilters(scope);
+
+  let subcatBarHTML = '';
+  if (isTraining) {
+    const cats = getTrainingCategories();
+    subcatBarHTML = `
+      <div class="subcat-bar">
+        <div class="subcat-tabs">
+          <button type="button" class="subcat-tab ${!state.trainingFilterCat ? 'active' : ''}" data-action="training-subcat" data-subcat="">
+            전체 <span class="subcat-count">${allInCat.length}</span>
+          </button>
+          ${cats.map((catName) => {
+            const cnt = allInCat.filter((r) => (r.trainingCategory || '학교 관련') === catName).length;
+            const icon = catName === '학교 관련' ? '🏫' : (catName === '학교 외' ? '🌐' : '🏷️');
+            return `
+              <button type="button" class="subcat-tab ${state.trainingFilterCat === catName ? 'active' : ''}" data-action="training-subcat" data-subcat="${esc(catName)}">
+                ${icon} ${esc(catName)} <span class="subcat-count">${cnt}</span>
+              </button>
+            `;
+          }).join('')}
+        </div>
+        <button type="button" class="btn btn-ghost sm subcat-manage-btn" data-action="manage-training-cats" title="연수 분류 추가 및 삭제">
+          ⚙️ 분류 관리
+        </button>
+      </div>
+    `;
+  }
+
+  const countDesc = isTraining && state.trainingFilterCat
+    ? `[${esc(state.trainingFilterCat)}] <b>${scope.length}건</b> (전체 ${allInCat.length}건)`
+    : `총 <b>${scope.length}건</b>`;
+
   return `
   <header class="page-head" style="--c:${c.color}">
     <div class="ph-icon">${c.icon}</div>
-    <div class="ph-text"><h1>${c.name}</h1><p>${c.desc} · 총 <b>${scope.length}건</b>${categorySummary(c, scope)}</p></div>
+    <div class="ph-text"><h1>${c.name}</h1><p>${c.desc} · ${countDesc}${categorySummary(c, scope)}</p></div>
     <div class="ph-actions" style="display:flex;gap:8px;align-items:center;">
       ${isTraining ? `<button class="btn btn-ghost" data-action="upload-excel" title="나이스(NEIS) 또는 교육연수원 엑셀 파일 바로 불러오기">📊 엑셀 가져오기</button>` : ''}
       <button class="btn btn-primary" data-action="add" data-cat="${c.id}">＋ ${c.name} 추가</button>
     </div>
   </header>
+  ${subcatBarHTML}
   ${scope.length ? filterBar(scope, { csvCat: c.id }) : ''}
   ${list.length ? `<div class="record-grid">${list.map(recordCard).join('')}</div>` : emptyState(c, scope.length)}`;
 }
@@ -473,6 +519,7 @@ function recordCard(r) {
   const c = CATEGORY_MAP[r.category];
   if (!c) return '';
   const detail = (c.detailKeys || [])
+    .filter((k) => k !== 'trainingCategory')
     .map((k) => fmtValue(getField(c, k), r[k]))
     .filter(Boolean)
     .map((v) => `<span class="chip-sm">${esc(v)}</span>`).join('');
@@ -491,9 +538,24 @@ function recordCard(r) {
   const isHealth = r.category === 'health';
   const showTitle = r.title && r.title !== '오늘의 건강 기록' && !(isHealth && r.title.includes(' · '));
 
+  let trainingCatBadge = '';
+  if (r.category === 'training') {
+    const tCat = r.trainingCategory || '학교 관련';
+    const isSchool = tCat === '학교 관련';
+    const isNonSchool = tCat === '학교 외';
+    const cls = isSchool ? 'badge-school' : (isNonSchool ? 'badge-nonschool' : 'badge-other');
+    const icon = isSchool ? '🏫 ' : (isNonSchool ? '🌐 ' : '🏷️ ');
+    trainingCatBadge = `<span class="badge-training-cat ${cls}">${icon}${esc(tCat)}</span>`;
+  }
+
   return `
   <article class="record-card" style="--c:${c.color}" data-action="edit" data-id="${r.id}" tabindex="0">
-    <div class="rc-top"><span class="rc-period">${esc(fmtPeriod(r)) || '날짜 미입력'}</span>${r.ongoing ? '<span class="badge badge-live">진행 중</span>' : ''}${expiryBadge(r)}</div>
+    <div class="rc-top">
+      <span class="rc-period">${esc(fmtPeriod(r)) || '날짜 미입력'}</span>
+      ${trainingCatBadge}
+      ${r.ongoing ? '<span class="badge badge-live">진행 중</span>' : ''}
+      ${expiryBadge(r)}
+    </div>
     ${showTitle ? `<h3 class="rc-title">${esc(r.title)}</h3>` : ''}
     ${healthBadges}
     ${r.org ? `<p class="rc-org">${esc(r.org)}</p>` : ''}
@@ -772,6 +834,29 @@ function fieldHTML(f, val) {
         </div>`;
       break;
     }
+    case 'training-cat': {
+      const cats = getTrainingCategories();
+      const cur = val || state.trainingFilterCat || cats[0] || '학교 관련';
+      control = `
+        <div class="training-cat-selector">
+          <div class="cat-radio-group">
+            ${cats.map((catName) => {
+              const isChecked = catName === cur;
+              const icon = catName === '학교 관련' ? '🏫' : (catName === '학교 외' ? '🌐' : '🏷️');
+              return `
+                <label class="cat-radio-chip ${isChecked ? 'active' : ''}">
+                  <input type="radio" name="${f.key}" value="${esc(catName)}" ${isChecked ? 'checked' : ''}>
+                  <span>${icon} ${esc(catName)}</span>
+                </label>
+              `;
+            }).join('')}
+          </div>
+          <button type="button" class="btn btn-ghost sm btn-add-inline-cat" id="btn-quick-add-training-cat" title="새 분류 추가">
+            ＋ 새 분류 추가
+          </button>
+        </div>`;
+      break;
+    }
     case 'checkbox':
       return `<div class="field field-check"><label class="switch-row"><span>${esc(f.label)}</span><input type="checkbox" class="switch" id="${id}" name="${f.key}" ${val ? 'checked' : ''}></label></div>`;
     case 'date':
@@ -855,6 +940,27 @@ function renderForm(data) {
         <button type="submit" class="btn btn-primary" id="record-save">저장</button>
       </footer>
     </form>`;
+
+  // 연수 분류 라디오 칩 인터랙션
+  $$('.cat-radio-chip', $('#modal-body')).forEach((chip) => {
+    chip.addEventListener('click', () => {
+      $$('.cat-radio-chip', $('#modal-body')).forEach((c) => c.classList.remove('active'));
+      chip.classList.add('active');
+      const radio = chip.querySelector('input[type="radio"]');
+      if (radio) radio.checked = true;
+    });
+  });
+
+  $('#btn-quick-add-training-cat', $('#modal-body'))?.addEventListener('click', async () => {
+    const name = prompt('새 연수 분류명을 입력해 주세요 (예: 자율 연수, 대학원 등):');
+    if (name && name.trim()) {
+      await addTrainingCategory(name.trim());
+      const form = $('#record-form');
+      const currentVals = form ? Object.fromEntries(new FormData(form)) : {};
+      currentVals.trainingCategory = name.trim();
+      renderForm(currentVals);
+    }
+  });
 
   // 날짜 입력 인터랙션 (숫자 입력 자동 포맷 + 달력 헬퍼 연동)
   $$('.input-date-wrap', $('#modal-body')).forEach((wrap) => {
@@ -964,6 +1070,11 @@ async function saveRecord(form) {
   const c = CATEGORY_MAP[form.dataset.cat];
   const data = { category: c.id };
   for (const f of fieldsOf(c)) {
+    if (f.type === 'training-cat') {
+      const checked = form.querySelector(`input[name="${f.key}"]:checked`);
+      data[f.key] = checked ? checked.value.trim() : (getTrainingCategories()[0] || '학교 관련');
+      continue;
+    }
     const el = form.elements[f.key];
     if (f.type === 'health-items') {
       const listEl = form.querySelector('#health-items-list');
@@ -1220,6 +1331,7 @@ async function handleExcelFile(file) {
 
       results.push({
         category: 'training',
+        trainingCategory: '학교 관련',
         title,
         org: orgCol !== -1 ? String(row[orgCol] || '').trim() : '',
         trainingType: typeCol !== -1 ? String(row[typeCol] || '').trim() : '직무연수',
@@ -1257,7 +1369,7 @@ function toast(msg, type = 'success') {
 
 /* ───────────────────────── 이벤트 ───────────────────────── */
 function resetFilters() {
-  Object.assign(state, { filterYear: '', filterTag: '', filterCat: '', search: '' });
+  Object.assign(state, { filterYear: '', filterTag: '', filterCat: '', trainingFilterCat: '', search: '' });
   $('#search').value = '';
 }
 
@@ -1265,6 +1377,7 @@ function bindEvents() {
   window.addEventListener('hashchange', () => {
     state.route = parseHash();
     Object.assign(state, { filterYear: '', filterTag: '', filterCat: '' });
+    if (state.route.cat !== 'training') state.trainingFilterCat = '';
     document.body.classList.remove('nav-open');
     render();
     $('#main').scrollTo?.(0, 0);
@@ -1299,6 +1412,7 @@ function bindEvents() {
   document.addEventListener('keydown', (e) => {
     if (e.key === 'Escape') {
       if ($('#confirm-modal').classList.contains('open')) $('#confirm-cancel').click();
+      else if ($('#training-cat-modal').classList.contains('open')) closeTrainingCatModal();
       else if ($('#record-modal').classList.contains('open')) closeModal();
       document.body.classList.remove('nav-open');
     }
@@ -1311,12 +1425,13 @@ function bindEvents() {
     if (e.target.closest('[data-stop]')) return;
     if (e.target.classList.contains('modal-overlay')) {
       if (e.target.id === 'record-modal') closeModal();
+      else if (e.target.id === 'training-cat-modal') closeTrainingCatModal();
       else $('#confirm-cancel').click();
       return;
     }
     const t = e.target.closest('[data-action]');
     if (!t) return;
-    const { action, id, cat, tag } = t.dataset;
+    const { action, id, cat, tag, subcat, catName } = t.dataset;
     const rec = id ? state.records.find((r) => r.id === id) : null;
     switch (action) {
       case 'add': openModal({ cat: cat || null }); break;
@@ -1327,6 +1442,10 @@ function bindEvents() {
       case 'pick-cat': state.modal.cat = cat; renderForm(null); break;
       case 'back-picker': state.modal.cat = null; renderPicker(); break;
       case 'close-modal': closeModal(); break;
+      case 'training-subcat': state.trainingFilterCat = subcat || ''; render(); break;
+      case 'manage-training-cats': openTrainingCatModal(); break;
+      case 'close-training-cat-modal': closeTrainingCatModal(); break;
+      case 'delete-training-cat': deleteTrainingCategory(catName); break;
       case 'tag': state.filterTag = state.filterTag === tag ? '' : tag; render(); break;
       case 'reset-filters': resetFilters(); render(); break;
       case 'csv': exportCSV(cat); break;
@@ -1427,6 +1546,123 @@ function openNicknameModal() {
 function closeNicknameModal() {
   $('#nickname-modal').classList.remove('open');
   document.body.classList.remove('modal-open');
+}
+
+/* ───────────────────── 연수 분류(카테고리) 관리 ───────────────────── */
+function openTrainingCatModal() {
+  renderTrainingCatModalBody();
+  $('#training-cat-modal').classList.add('open');
+  document.body.classList.add('modal-open');
+}
+
+function closeTrainingCatModal() {
+  $('#training-cat-modal').classList.remove('open');
+  document.body.classList.remove('modal-open');
+}
+
+function renderTrainingCatModalBody() {
+  const cats = getTrainingCategories();
+  const allTraining = state.records.filter((r) => r.category === 'training');
+
+  $('#training-cat-modal-body').innerHTML = `
+    <p class="muted sm" style="margin-bottom:12px;line-height:1.5;">
+      연수를 목적과 성격에 맞게 분류해 보세요. (기본: 학교 관련, 학교 외)<br>
+      분류를 삭제하면 해당 연수들은 자동으로 <b>'학교 관련'</b>으로 이동됩니다.
+    </p>
+    <div class="training-cat-list">
+      ${cats.map((catName) => {
+        const cnt = allTraining.filter((r) => (r.trainingCategory || '학교 관련') === catName).length;
+        const icon = catName === '학교 관련' ? '🏫' : (catName === '학교 외' ? '🌐' : '🏷️');
+        return `
+          <div class="training-cat-item">
+            <div class="tci-info">
+              <span>${icon}</span>
+              <strong>${esc(catName)}</strong>
+              <span class="tci-count">${cnt}건</span>
+            </div>
+            <div class="tci-actions">
+              <button type="button" class="icon-btn sm danger" data-action="delete-training-cat" data-cat-name="${esc(catName)}" title="“${esc(catName)}” 분류 삭제" aria-label="삭제">
+                🗑
+              </button>
+            </div>
+          </div>
+        `;
+      }).join('')}
+    </div>
+    <form id="add-training-cat-form" autocomplete="off" style="margin-top:12px;">
+      <div class="new-cat-row">
+        <input type="text" class="input" id="new-training-cat-input" placeholder="새 분류명 (예: 대학원, 자율연수)" maxlength="20" required>
+        <button type="submit" class="btn btn-primary sm" id="btn-add-training-cat-submit" style="white-space:nowrap;height:40px;padding:0 16px;">＋ 추가</button>
+      </div>
+    </form>
+    <div class="modal-foot" style="margin-top:16px;">
+      <span class="spacer"></span>
+      <button type="button" class="btn btn-ghost" data-action="close-training-cat-modal">닫기</button>
+    </div>
+  `;
+
+  $('#add-training-cat-form')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const inp = $('#new-training-cat-input');
+    const val = inp?.value.trim();
+    if (!val) return;
+    await addTrainingCategory(val);
+    inp.value = '';
+    inp.focus();
+  });
+}
+
+async function addTrainingCategory(name) {
+  const trimmed = name.trim();
+  if (!trimmed) return;
+  const cats = getTrainingCategories();
+  if (cats.includes(trimmed)) {
+    return toast('이미 존재하는 분류 이름이에요.', 'error');
+  }
+  const next = [...cats, trimmed];
+  state.settings.trainingCategories = next;
+  try {
+    await store.saveSettings(state.settings);
+    renderTrainingCatModalBody();
+    render();
+    toast(`“${trimmed}” 분류를 추가했어요.`);
+  } catch (err) {
+    handleError(err);
+  }
+}
+
+async function deleteTrainingCategory(catName) {
+  const cats = getTrainingCategories();
+  if (cats.length <= 1) {
+    return toast('최소 1개 이상의 분류를 유지해야 합니다.', 'error');
+  }
+  const affected = state.records.filter((r) => r.category === 'training' && (r.trainingCategory || '학교 관련') === catName);
+  const msg = affected.length > 0
+    ? `“${catName}” 분류를 사용하는 연수가 ${affected.length}건 있습니다.\n삭제 시 해당 연수들은 '학교 관련'으로 자동 이동됩니다. 삭제할까요?`
+    : `“${catName}” 분류를 삭제할까요?`;
+
+  const ok = await confirmDialog('연수 분류 삭제', msg, '삭제');
+  if (!ok) return;
+
+  try {
+    if (affected.length > 0) {
+      for (const r of affected) {
+        await store.update(r.id, { trainingCategory: '학교 관련' });
+      }
+    }
+    const next = cats.filter((c) => c !== catName);
+    state.settings.trainingCategories = next;
+    await store.saveSettings(state.settings);
+
+    if (state.trainingFilterCat === catName) {
+      state.trainingFilterCat = '';
+    }
+    renderTrainingCatModalBody();
+    render();
+    toast(`“${catName}” 분류를 삭제했어요.`);
+  } catch (err) {
+    handleError(err);
+  }
 }
 
 function updateResumeOpts() {

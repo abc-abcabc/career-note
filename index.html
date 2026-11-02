@@ -12,7 +12,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Outfit:wght@500;600;700;800&display=swap">
-  <link rel="stylesheet" href="css/style.css?v=2.6">
+  <link rel="stylesheet" href="css/style.css?v=2.7">
   <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -139,6 +139,18 @@
           <button type="submit" class="btn btn-primary" id="nickname-save">저장</button>
         </div>
       </form>
+    </div>
+  </div>
+
+  <!-- 연수 분류(카테고리) 관리 모달 -->
+  <div class="modal-overlay" id="training-cat-modal">
+    <div class="modal modal-sm" role="dialog" aria-modal="true" aria-labelledby="training-cat-modal-title">
+      <header class="modal-head">
+        <span class="mh-icon" style="--c:#34d399;">📚</span>
+        <h2 id="training-cat-modal-title">연수 분류 관리</h2>
+        <button class="icon-btn" data-action="close-training-cat-modal" aria-label="닫기">✕</button>
+      </header>
+      <div class="modal-body" id="training-cat-modal-body"></div>
     </div>
   </div>
 

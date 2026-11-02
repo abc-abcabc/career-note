@@ -40,8 +40,9 @@ export const CATEGORIES = [
   {
     id: 'training', name: '연수', icon: '📚', color: '#34d399', period: true,
     desc: '직무 · 자격 · 원격 연수',
-    detailKeys: ['trainingType', 'method', 'hours', 'credits'],
+    detailKeys: ['trainingCategory', 'trainingType', 'method', 'hours', 'credits'],
     fields: [
+      { key: 'trainingCategory', label: '연수 분류', type: 'training-cat', required: true, full: true },
       { key: 'title', label: '연수명', type: 'text', required: true, placeholder: '예: AI 디지털교과서 활용 직무연수', full: true },
       { key: 'trainingType', label: '연수 구분', type: 'select', options: ['직무연수', '자격연수', '특수분야연수', '맞춤형 직무연수', '교과교육연구회', '컨설팅·워크숍', '기타'] },
       { key: 'method', label: '연수 방식', type: 'select', options: ['집합', '원격', '혼합(블렌디드)'] },
