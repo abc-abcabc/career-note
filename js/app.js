@@ -678,6 +678,28 @@ function renderPicker() {
       <span class="pick-icon">${c.icon}</span><b>${c.name}</b><small>${c.desc}</small></button>`).join('')}</div>`;
 }
 
+function normalizeDateStr(str) {
+  if (!str) return '';
+  const trimmed = String(str).trim();
+  const digits = trimmed.replace(/\D/g, '');
+  if (digits.length === 8) {
+    return `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+  }
+  const parts = trimmed.split(/[./-]/).filter(Boolean);
+  if (parts.length === 3) {
+    const y = parts[0].length === 2 ? `20${parts[0]}` : parts[0];
+    const m = parts[1].padStart(2, '0');
+    const d = parts[2].padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  if (parts.length === 2 && digits.length <= 6) {
+    const y = parts[0].length === 2 ? `20${parts[0]}` : parts[0];
+    const m = parts[1].padStart(2, '0');
+    return `${y}-${m}`;
+  }
+  return trimmed;
+}
+
 function fieldHTML(f, val) {
   const id = `fld-${f.key}`;
   const req = f.required ? 'required' : '';
@@ -695,6 +717,14 @@ function fieldHTML(f, val) {
     }
     case 'checkbox':
       return `<div class="field field-check"><label class="switch-row"><span>${esc(f.label)}</span><input type="checkbox" class="switch" id="${id}" name="${f.key}" ${val ? 'checked' : ''}></label></div>`;
+    case 'date':
+      control = `
+        <div class="input-date-wrap">
+          <input class="input date-input" id="${id}" name="${f.key}" type="text" inputmode="numeric" placeholder="${esc(f.placeholder || '예: 2024-03-01 또는 20240301')}" value="${esc(val || '')}" maxlength="10" ${req}>
+          <input type="date" class="date-picker-helper" tabindex="-1" aria-hidden="true" value="${esc(val || '')}">
+          <button type="button" class="btn-date-picker" data-for="${id}" title="달력에서 선택" aria-label="달력 열기">📅</button>
+        </div>`;
+      break;
     case 'tags':
       control = `<input class="input" id="${id}" name="${f.key}" type="text" placeholder="${esc(f.placeholder || '')}" value="${esc((val || []).join(', '))}">`;
       break;
@@ -724,6 +754,46 @@ function renderForm(data) {
         <button type="submit" class="btn btn-primary" id="record-save">저장</button>
       </footer>
     </form>`;
+
+  // 날짜 입력 인터랙션 (숫자 입력 자동 포맷 + 달력 헬퍼 연동)
+  $$('.input-date-wrap', $('#modal-body')).forEach((wrap) => {
+    const textInput = wrap.querySelector('.date-input');
+    const helper = wrap.querySelector('.date-picker-helper');
+    const calBtn = wrap.querySelector('.btn-date-picker');
+
+    textInput.addEventListener('input', (e) => {
+      if (e.inputType === 'deleteContentBackward') return;
+      const digits = textInput.value.replace(/\D/g, '');
+      if (digits.length >= 8 && !textInput.value.includes('-') && !textInput.value.includes('.')) {
+        textInput.value = `${digits.slice(0, 4)}-${digits.slice(4, 6)}-${digits.slice(6, 8)}`;
+      }
+    });
+
+    textInput.addEventListener('blur', () => {
+      if (textInput.value) {
+        textInput.value = normalizeDateStr(textInput.value);
+        if (helper) helper.value = textInput.value;
+      }
+    });
+
+    if (calBtn && helper) {
+      calBtn.addEventListener('click', () => {
+        try {
+          if (typeof helper.showPicker === 'function') helper.showPicker();
+          else helper.click();
+        } catch {
+          helper.click();
+        }
+      });
+      helper.addEventListener('change', () => {
+        if (helper.value) {
+          textInput.value = helper.value;
+          textInput.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+      });
+    }
+  });
+
   syncOngoing();
   setTimeout(() => $('#fld-title')?.focus(), 60);
 }
@@ -744,6 +814,7 @@ async function saveRecord(form) {
     const el = form.elements[f.key];
     if (!el) continue;
     if (f.type === 'checkbox') data[f.key] = el.checked;
+    else if (f.type === 'date') data[f.key] = normalizeDateStr(el.value);
     else if (f.type === 'number') data[f.key] = el.value === '' ? null : Number(el.value);
     else if (f.type === 'tags') data[f.key] = [...new Set(el.value.split(',').map((s) => s.trim().replace(/^#/, '')).filter(Boolean))];
     else data[f.key] = el.value.trim();

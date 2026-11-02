@@ -118,6 +118,23 @@
   border-radius: 4px;
   background: #2563eb !important;
 }
+[data-theme="light"] .switch-row {
+  background: #ffffff !important;
+  border: 1.5px solid #cbd5e1 !important;
+  color: #0f172a !important;
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.03);
+}
+[data-theme="light"] .switch-row:hover {
+  border-color: #3b82f6 !important;
+  background: #f8fafc !important;
+}
+[data-theme="light"] .switch {
+  background: #cbd5e1;
+}
+[data-theme="light"] .switch:checked {
+  background: #2563eb;
+}
 [data-theme="light"] select option { background: #ffffff; color: #0f172a; }
 [data-theme="light"] .modal { background: #ffffff; box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.25); border-color: rgba(0, 0, 0, 0.1); }
 [data-theme="light"] .tl-card { background: #ffffff; }
@@ -271,11 +288,20 @@ input[type="date"]::-webkit-calendar-picker-indicator { filter: invert(.7); curs
 .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px 14px; }
 
 /* 스위치 */
-.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 42px; padding: 0 14px; border-radius: 11px; border: 1px solid var(--border); background: rgba(0, 0, 0, .18); cursor: pointer; font-size: 14px; color: var(--text-2); }
-.switch { appearance: none; width: 40px; height: 23px; border-radius: 999px; background: rgba(255, 255, 255, .14); position: relative; cursor: pointer; transition: background .25s; flex-shrink: 0; margin: 0; }
+.switch-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: 42px; padding: 0 14px; border-radius: 11px; border: 1px solid var(--border); background: rgba(255, 255, 255, .04); cursor: pointer; font-size: 14px; color: var(--text-2); transition: border-color .2s, background .2s; }
+.switch-row:hover { border-color: var(--border-2); }
+.switch { appearance: none; width: 40px; height: 23px; border-radius: 999px; background: rgba(255, 255, 255, .18); position: relative; cursor: pointer; transition: background .25s; flex-shrink: 0; margin: 0; }
 .switch::after { content: ''; position: absolute; top: 3px; left: 3px; width: 17px; height: 17px; border-radius: 50%; background: #fff; transition: transform .25s var(--ease); box-shadow: 0 2px 6px rgba(0, 0, 0, .3); }
 .switch:checked { background: var(--accent); }
 .switch:checked::after { transform: translateX(17px); }
+
+/* 날짜 입력 래퍼 (숫자 직접 입력 + 달력 선택) */
+.input-date-wrap { position: relative; display: flex; align-items: center; width: 100%; }
+.input-date-wrap .input { padding-right: 44px; font-variant-numeric: tabular-nums; }
+.date-picker-helper { position: absolute; opacity: 0; width: 0; height: 0; pointer-events: none; border: 0; padding: 0; }
+.btn-date-picker { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); width: 32px; height: 32px; border-radius: 8px; border: 0; background: transparent; cursor: pointer; display: grid; place-items: center; font-size: 16px; color: var(--muted); transition: background .2s, transform .1s; }
+.btn-date-picker:hover { background: var(--surface-3); transform: translateY(-50%) scale(1.08); }
+[data-theme="light"] .btn-date-picker:hover { background: #e2e8f0; }
 
 /* ── 화면 (로딩/설정/로그인) ── */
 .screen.center { min-height: 100vh; display: grid; place-items: center; padding: 24px; }
