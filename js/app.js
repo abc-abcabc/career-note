@@ -711,8 +711,23 @@ function fieldHTML(f, val) {
       break;
     case 'select': {
       const opts = [...f.options];
-      if (val && !opts.includes(val)) opts.push(val);
-      control = `<select class="input" id="${id}" name="${f.key}" ${req}><option value="">선택</option>${opts.map((o) => `<option ${o === val ? 'selected' : ''}>${esc(o)}</option>`).join('')}</select>`;
+      const isCustomVal = f.allowCustom && val && !opts.includes(val) && val !== '직접 입력…' && val !== '직접 입력';
+      const isCustomSelected = f.allowCustom && (isCustomVal || val === '직접 입력…' || val === '직접 입력');
+      if (val && !opts.includes(val) && !f.allowCustom) opts.push(val);
+
+      control = `
+        <div class="select-custom-wrap">
+          <select class="input ${f.allowCustom ? 'select-with-custom' : ''}" id="${id}" name="${f.key}" ${f.allowCustom ? `data-custom-target="${id}-custom"` : ''} ${req}>
+            <option value="">선택</option>
+            ${opts.map((o) => {
+              const selected = o === val || (isCustomSelected && (o === '직접 입력…' || o === '직접 입력'));
+              return `<option value="${esc(o)}" ${selected ? 'selected' : ''}>${esc(o)}</option>`;
+            }).join('')}
+          </select>
+          ${f.allowCustom ? `
+            <input class="input custom-text-input" id="${id}-custom" type="text" placeholder="${esc(f.placeholder || '직접 입력 (예: 1시간 30분, 4시간)')}" value="${esc(isCustomVal ? val : '')}" style="margin-top: 8px; display: ${isCustomSelected ? 'block' : 'none'};">
+          ` : ''}
+        </div>`;
       break;
     }
     case 'checkbox':
@@ -794,6 +809,21 @@ function renderForm(data) {
     }
   });
 
+  // 직접 입력 지원 select 연동
+  $$('.select-with-custom', $('#modal-body')).forEach((sel) => {
+    const targetId = sel.dataset.customTarget;
+    const customInput = $(`#${targetId}`, $('#modal-body'));
+    if (!customInput) return;
+    sel.addEventListener('change', () => {
+      if (sel.value === '직접 입력…' || sel.value === '직접 입력') {
+        customInput.style.display = 'block';
+        customInput.focus();
+      } else {
+        customInput.style.display = 'none';
+      }
+    });
+  });
+
   syncOngoing();
   setTimeout(() => $('#fld-title')?.focus(), 60);
 }
@@ -814,6 +844,14 @@ async function saveRecord(form) {
     const el = form.elements[f.key];
     if (!el) continue;
     if (f.type === 'checkbox') data[f.key] = el.checked;
+    else if (f.type === 'select' && f.allowCustom) {
+      const customEl = form.querySelector(`#fld-${f.key}-custom`);
+      if (el.value === '직접 입력…' || el.value === '직접 입력') {
+        data[f.key] = customEl?.value.trim() || '직접 입력';
+      } else {
+        data[f.key] = el.value.trim();
+      }
+    }
     else if (f.type === 'date') data[f.key] = normalizeDateStr(el.value);
     else if (f.type === 'number') data[f.key] = el.value === '' ? null : Number(el.value);
     else if (f.type === 'tags') data[f.key] = [...new Set(el.value.split(',').map((s) => s.trim().replace(/^#/, '')).filter(Boolean))];

@@ -146,7 +146,7 @@ export const CATEGORIES = [
     detailKeys: ['effortTime', 'mood'],
     fields: [
       { key: 'date', label: '실천 일자', type: 'date', required: true },
-      { key: 'effortTime', label: '노력 시간', type: 'select', options: ['15분', '30분', '1시간', '2시간', '3시간 이상'] },
+      { key: 'effortTime', label: '노력 시간', type: 'select', allowCustom: true, options: ['15분', '30분', '1시간', '1시간 30분', '2시간', '2시간 30분', '3시간', '4시간', '5시간 이상', '직접 입력…'], placeholder: '직접 입력 (예: 4시간 30분, 90분)' },
       { key: 'title', label: '오늘 실천한 내용 (한 줄 요약)', type: 'text', required: true, placeholder: '예: AI 디지털교과서 수업안 1차시 구상 및 독서 30분', full: true },
       { key: 'desc', label: '배운 점 및 느낀 점 (성장 기록)', type: 'textarea', placeholder: '오늘 무엇을 배우거나 깨달았나요? 앞으로 적용해보고 싶은 점은?', full: true },
       { key: 'link', label: '관련 링크/자료', type: 'url', placeholder: 'https://' },
