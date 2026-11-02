@@ -38,5 +38,31 @@ export const SAMPLE_RECORDS = [
   { category: 'dailylog', title: '디지털 교육 트렌드 칼럼 2편 정독 및 핵심 메모', date: '2026-10-31', effortTime: '30분', desc: '에듀테크 도구 활용 시 학생 주의집중 유지 전략 정리.', tags: ['독서', '에듀테크'] },
   { category: 'dailylog', title: '동학년 교과 연구회 11월 수업 아이디어 나눔', date: '2026-10-28', effortTime: '1시간', desc: '프로젝트 수업 평가 루브릭 공유받고 내 학급용으로 수정.', tags: ['수업나눔'] },
 
+  {
+    category: 'health',
+    title: '운동 40분 완료 및 비타민 복용',
+    date: '2026-11-01',
+    healthItems: [
+      { name: '운동', value: '조깅 30분, 스트레칭 10분' },
+      { name: '영양제', value: '종합비타민, 오메가3, 유산균 복용' },
+      { name: '음주', value: '금주 (무음주)' },
+      { name: '수면', value: '7시간 30분 숙면' },
+    ],
+    desc: '아침 조깅 후 활력이 넘침. 물 2L 충분히 섭취함.',
+    tags: ['유산소', '금주'],
+  },
+  {
+    category: 'health',
+    title: '헬스 상체 웨이트 및 영양제 복용',
+    date: '2026-10-30',
+    healthItems: [
+      { name: '운동', value: '헬스 상체 웨이트 트레이닝 50분' },
+      { name: '영양제', value: '단백질 쉐이크, 마그네슘, 비타민D' },
+      { name: '음주', value: '금주 (무음주)' },
+    ],
+    desc: '어깨 및 가슴 운동 집중 루틴 진행.',
+    tags: ['웨이트', '건강'],
+  },
+
   { category: 'etc', title: '교육 신문 인터뷰 – AI 수업 사례', etcType: '언론 보도', org: '한국교육신문', date: '2025-11-12', tags: ['AI'] },
 ];

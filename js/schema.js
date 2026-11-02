@@ -153,6 +153,17 @@ export const CATEGORIES = [
     ],
   },
   {
+    id: 'health', name: '건강', icon: '💪', color: '#06b6d4', period: false,
+    desc: '운동 · 영양제 · 음주 및 라이프스타일 기록',
+    detailKeys: ['healthSummary'],
+    fields: [
+      { key: 'date', label: '실천 일자', type: 'date', required: true },
+      { key: 'title', label: '오늘의 요약 (선택)', type: 'text', placeholder: '비워두면 항목별 내용으로 자동 완성돼요', full: true },
+      { key: 'healthItems', label: '건강 관리 항목 (운동·영양제·음주 등)', type: 'health-items', full: true },
+      { key: 'desc', label: '메모 및 컨디션 (선택)', type: 'textarea', placeholder: '오늘의 몸 상태, 피로도, 식단 등 자유롭게 기록', full: true },
+    ],
+  },
+  {
     id: 'etc', name: '기타', icon: '📝', color: '#94a3b8', period: false,
     desc: '그 밖의 모든 기록',
     detailKeys: ['etcType'],

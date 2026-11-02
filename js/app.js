@@ -26,7 +26,7 @@ const state = {
   filterCat: '',
   sort: 'desc',
   goalYear: THIS_YEAR,
-  resume: { cats: CATEGORIES.map((c) => c.id), from: '', to: '', desc: false, profile: true },
+  resume: { cats: CATEGORIES.filter((c) => !['dailylog', 'health'].includes(c.id)).map((c) => c.id), from: '', to: '', desc: false, profile: true },
   modal: { cat: null, record: null, fromPicker: false },
 };
 
@@ -163,7 +163,7 @@ const skeleton = () =>
 
 /* ───────────────────────── 사이드바 ───────────────────────── */
 function renderNavCats() {
-  $('#nav-cats').innerHTML = CATEGORIES.filter((c) => c.id !== 'dailylog').map(
+  $('#nav-cats').innerHTML = CATEGORIES.filter((c) => !['dailylog', 'health'].includes(c.id)).map(
     (c) => `<a href="#/c/${c.id}" class="nav-item" data-view="category" data-cat="${c.id}" style="--c:${c.color}">
       <span class="ni-icon">${c.icon}</span><span class="ni-text">${c.name}</span><span class="ni-count" data-count="${c.id}">0</span></a>`
   ).join('');
@@ -443,6 +443,32 @@ function viewCategory(catId) {
   ${list.length ? `<div class="record-grid">${list.map(recordCard).join('')}</div>` : emptyState(c, scope.length)}`;
 }
 
+function healthItemIcon(name = '') {
+  const n = String(name).trim();
+  if (n.includes('운동') || n.includes('헬스') || n.includes('러닝') || n.includes('조깅') || n.includes('걷기') || n.includes('수영')) return '🏃';
+  if (n.includes('영양제') || n.includes('비타민') || n.includes('약') || n.includes('유산균') || n.includes('오메가')) return '💊';
+  if (n.includes('음주') || n.includes('술') || n.includes('맥주') || n.includes('소주') || n.includes('와인') || n.includes('금주')) return '🍺';
+  if (n.includes('수면') || n.includes('잠') || n.includes('취침')) return '💤';
+  if (n.includes('식단') || n.includes('식사') || n.includes('밥') || n.includes('칼로리')) return '🥗';
+  if (n.includes('물') || n.includes('수분')) return '💧';
+  if (n.includes('몸무게') || n.includes('체중') || n.includes('인바디')) return '⚖️';
+  if (n.includes('혈압') || n.includes('혈당')) return '🩺';
+  if (n.includes('스트레칭') || n.includes('요가')) return '🧘';
+  return '✨';
+}
+
+function getHealthPlaceholder(name = '') {
+  const n = String(name).trim();
+  if (n.includes('운동')) return '예: 조깅 30분, 헬스 가슴 5세트, 만보 걷기 등';
+  if (n.includes('영양제')) return '예: 종합비타민, 오메가3, 유산균, 루테인 복용 등';
+  if (n.includes('음주')) return '예: 금주(무음주), 맥주 1캔, 와인 2잔 등';
+  if (n.includes('수면')) return '예: 7시간 숙면, 밤 11시 취침 등';
+  if (n.includes('식단')) return '예: 샐러드 점심, 과식 안 함, 단백질 위주 등';
+  if (n.includes('물')) return '예: 1.5L 섭취 등';
+  if (n.includes('몸무게')) return '예: 68.5kg 등';
+  return '내용을 입력하세요';
+}
+
 function recordCard(r) {
   const c = CATEGORY_MAP[r.category];
   if (!c) return '';
@@ -450,10 +476,23 @@ function recordCard(r) {
     .map((k) => fmtValue(getField(c, k), r[k]))
     .filter(Boolean)
     .map((v) => `<span class="chip-sm">${esc(v)}</span>`).join('');
+
+  const healthBadges = r.category === 'health' && Array.isArray(r.healthItems) && r.healthItems.length
+    ? `<div class="health-badges-grid">
+        ${r.healthItems.filter((it) => it && it.name && it.value).map((it) => `
+          <div class="health-badge-item">
+            <span class="hbi-tag">${healthItemIcon(it.name)} ${esc(it.name)}</span>
+            <span class="hbi-desc">${esc(it.value)}</span>
+          </div>
+        `).join('')}
+       </div>`
+    : '';
+
   return `
   <article class="record-card" style="--c:${c.color}" data-action="edit" data-id="${r.id}" tabindex="0">
     <div class="rc-top"><span class="rc-period">${esc(fmtPeriod(r)) || '날짜 미입력'}</span>${r.ongoing ? '<span class="badge badge-live">진행 중</span>' : ''}${expiryBadge(r)}</div>
     <h3 class="rc-title">${esc(r.title)}</h3>
+    ${healthBadges}
     ${r.org ? `<p class="rc-org">${esc(r.org)}</p>` : ''}
     ${detail ? `<div class="rc-chips">${detail}</div>` : ''}
     ${r.desc ? `<p class="rc-desc">${esc(r.desc)}</p>` : ''}
@@ -740,6 +779,43 @@ function fieldHTML(f, val) {
           <button type="button" class="btn-date-picker" data-for="${id}" title="달력에서 선택" aria-label="달력 열기">📅</button>
         </div>`;
       break;
+    case 'health-items': {
+      const defaultItems = [
+        { name: '운동', value: '' },
+        { name: '영양제', value: '' },
+        { name: '음주', value: '' },
+      ];
+      const items = Array.isArray(val) && val.length ? val : defaultItems;
+      control = `
+        <div class="health-items-builder" id="health-items-builder">
+          <datalist id="health-name-suggestions">
+            <option value="운동">
+            <option value="영양제">
+            <option value="음주">
+            <option value="수면">
+            <option value="식단">
+            <option value="물 섭취">
+            <option value="몸무게">
+            <option value="스트레칭">
+          </datalist>
+          <div class="health-items-list" id="health-items-list">
+            ${items.map((it, idx) => `
+              <div class="health-item-row" data-idx="${idx}">
+                <div class="hir-head">
+                  <span class="hir-icon">${healthItemIcon(it.name)}</span>
+                  <input type="text" class="input hir-name-input" value="${esc(it.name)}" placeholder="항목명" list="health-name-suggestions">
+                </div>
+                <input type="text" class="input hir-val-input" value="${esc(it.value || '')}" placeholder="${esc(getHealthPlaceholder(it.name))}">
+                <button type="button" class="btn-remove-hir" title="이 항목 삭제" aria-label="이 항목 삭제">✕</button>
+              </div>
+            `).join('')}
+          </div>
+          <button type="button" class="btn btn-ghost sm add-health-item-btn" id="btn-add-health-item">
+            ＋ 새 항목 추가 (예: 수면, 식단 등)
+          </button>
+        </div>`;
+      break;
+    }
     case 'tags':
       control = `<input class="input" id="${id}" name="${f.key}" type="text" placeholder="${esc(f.placeholder || '')}" value="${esc((val || []).join(', '))}">`;
       break;
@@ -824,6 +900,43 @@ function renderForm(data) {
     });
   });
 
+  // 건강 항목 동적 추가/삭제/아이콘 연동
+  const healthListEl = $('#health-items-list', $('#modal-body'));
+  const addHealthBtn = $('#btn-add-health-item', $('#modal-body'));
+  if (healthListEl && addHealthBtn) {
+    healthListEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-remove-hir');
+      if (!btn) return;
+      const row = btn.closest('.health-item-row');
+      if (row) row.remove();
+    });
+
+    healthListEl.addEventListener('input', (e) => {
+      if (e.target.classList.contains('hir-name-input')) {
+        const row = e.target.closest('.health-item-row');
+        const iconEl = row?.querySelector('.hir-icon');
+        const valInput = row?.querySelector('.hir-val-input');
+        if (iconEl) iconEl.textContent = healthItemIcon(e.target.value);
+        if (valInput && !valInput.value) valInput.placeholder = getHealthPlaceholder(e.target.value);
+      }
+    });
+
+    addHealthBtn.addEventListener('click', () => {
+      const newRow = document.createElement('div');
+      newRow.className = 'health-item-row';
+      newRow.innerHTML = `
+        <div class="hir-head">
+          <span class="hir-icon">✨</span>
+          <input type="text" class="input hir-name-input" value="" placeholder="항목명 (예: 수면)" list="health-name-suggestions">
+        </div>
+        <input type="text" class="input hir-val-input" value="" placeholder="내용을 입력하세요">
+        <button type="button" class="btn-remove-hir" title="이 항목 삭제" aria-label="이 항목 삭제">✕</button>
+      `;
+      healthListEl.appendChild(newRow);
+      newRow.querySelector('.hir-name-input')?.focus();
+    });
+  }
+
   syncOngoing();
   setTimeout(() => $('#fld-title')?.focus(), 60);
 }
@@ -842,6 +955,17 @@ async function saveRecord(form) {
   const data = { category: c.id };
   for (const f of fieldsOf(c)) {
     const el = form.elements[f.key];
+    if (f.type === 'health-items') {
+      const listEl = form.querySelector('#health-items-list');
+      if (listEl) {
+        const rows = [...listEl.querySelectorAll('.health-item-row')];
+        data.healthItems = rows.map((row) => ({
+          name: row.querySelector('.hir-name-input')?.value.trim() || '기타',
+          value: row.querySelector('.hir-val-input')?.value.trim() || '',
+        })).filter((it) => it.name && (it.value || rows.length <= 3));
+      }
+      continue;
+    }
     if (!el) continue;
     if (f.type === 'checkbox') data[f.key] = el.checked;
     else if (f.type === 'select' && f.allowCustom) {
@@ -856,6 +980,14 @@ async function saveRecord(form) {
     else if (f.type === 'number') data[f.key] = el.value === '' ? null : Number(el.value);
     else if (f.type === 'tags') data[f.key] = [...new Set(el.value.split(',').map((s) => s.trim().replace(/^#/, '')).filter(Boolean))];
     else data[f.key] = el.value.trim();
+  }
+  if (c.id === 'health' && !data.title) {
+    const filled = (data.healthItems || []).filter((it) => it.value);
+    if (filled.length) {
+      data.title = filled.map((it) => `${it.name}: ${it.value}`).join(' · ');
+    } else {
+      data.title = '오늘의 건강 기록';
+    }
   }
   if (data.ongoing) data.endDate = '';
   if (data.startDate && data.endDate && data.endDate < data.startDate) {
