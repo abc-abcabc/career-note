@@ -158,7 +158,7 @@ export const CATEGORIES = [
     detailKeys: ['healthSummary'],
     fields: [
       { key: 'date', label: '실천 일자', type: 'date', required: true },
-      { key: 'title', label: '오늘의 요약 (선택)', type: 'text', placeholder: '비워두면 항목별 내용으로 자동 완성돼요', full: true },
+      { key: 'title', label: '오늘의 요약 (선택)', type: 'text', placeholder: '적지 않아도 돼요 (제목을 따로 남기고 싶을 때만 입력)', full: true },
       { key: 'healthItems', label: '건강 관리 항목 (운동·영양제·음주 등)', type: 'health-items', full: true },
       { key: 'desc', label: '메모 및 컨디션 (선택)', type: 'textarea', placeholder: '오늘의 몸 상태, 피로도, 식단 등 자유롭게 기록', full: true },
     ],

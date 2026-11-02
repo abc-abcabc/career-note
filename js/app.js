@@ -488,10 +488,13 @@ function recordCard(r) {
        </div>`
     : '';
 
+  const isHealth = r.category === 'health';
+  const showTitle = r.title && r.title !== '오늘의 건강 기록' && !(isHealth && r.title.includes(' · '));
+
   return `
   <article class="record-card" style="--c:${c.color}" data-action="edit" data-id="${r.id}" tabindex="0">
     <div class="rc-top"><span class="rc-period">${esc(fmtPeriod(r)) || '날짜 미입력'}</span>${r.ongoing ? '<span class="badge badge-live">진행 중</span>' : ''}${expiryBadge(r)}</div>
-    <h3 class="rc-title">${esc(r.title)}</h3>
+    ${showTitle ? `<h3 class="rc-title">${esc(r.title)}</h3>` : ''}
     ${healthBadges}
     ${r.org ? `<p class="rc-org">${esc(r.org)}</p>` : ''}
     ${detail ? `<div class="rc-chips">${detail}</div>` : ''}
@@ -831,12 +834,19 @@ function fieldHTML(f, val) {
 function renderForm(data) {
   const c = CATEGORY_MAP[state.modal.cat];
   const editing = !!state.modal.record;
+  const formData = data ? { ...data } : null;
+  // 건강 탭: 이전에 자동 저장되었던 요약 문구(운동: ... · 영양제: ...)는 제목 입력창에 채우지 않고 빈칸으로 유지
+  if (formData && c.id === 'health') {
+    if (formData.title === '오늘의 건강 기록' || (formData.healthItems && formData.title.includes(' · '))) {
+      formData.title = '';
+    }
+  }
   $('#modal-icon').textContent = c.icon;
   $('#modal-icon').style.setProperty('--c', c.color);
   $('#modal-title').textContent = `${c.name} ${editing ? '수정' : '추가'}`;
   $('#modal-body').innerHTML = `
     <form id="record-form" data-cat="${c.id}" autocomplete="off">
-      <div class="form-grid">${fieldsOf(c).map((f) => fieldHTML(f, data?.[f.key])).join('')}</div>
+      <div class="form-grid">${fieldsOf(c).map((f) => fieldHTML(f, formData?.[f.key])).join('')}</div>
       <footer class="modal-foot">
         ${editing ? '<button type="button" class="btn btn-danger-ghost" data-action="delete-current">삭제</button>' : ''}
         ${state.modal.fromPicker ? '<button type="button" class="btn btn-ghost" data-action="back-picker">← 다른 항목</button>' : ''}
@@ -980,14 +990,6 @@ async function saveRecord(form) {
     else if (f.type === 'number') data[f.key] = el.value === '' ? null : Number(el.value);
     else if (f.type === 'tags') data[f.key] = [...new Set(el.value.split(',').map((s) => s.trim().replace(/^#/, '')).filter(Boolean))];
     else data[f.key] = el.value.trim();
-  }
-  if (c.id === 'health' && !data.title) {
-    const filled = (data.healthItems || []).filter((it) => it.value);
-    if (filled.length) {
-      data.title = filled.map((it) => `${it.name}: ${it.value}`).join(' · ');
-    } else {
-      data.title = '오늘의 건강 기록';
-    }
   }
   if (data.ongoing) data.endDate = '';
   if (data.startDate && data.endDate && data.endDate < data.startDate) {
