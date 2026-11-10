@@ -1510,6 +1510,7 @@ function bindEvents() {
       case 'close-nickname-modal': closeNicknameModal(); break;
       case 'toggle-theme': toggleTheme(); break;
       case 'toggle-nav': document.body.classList.toggle('nav-open'); break;
+      case 'reload-app': e.preventDefault(); location.hash = '#/dashboard'; location.reload(); break;
       case 'logout': store.signOut(); break;
     }
   });
