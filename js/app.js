@@ -481,8 +481,8 @@ function viewCategory(pageCat) {
   const allInCat = state.records.filter((r) => r.category === catId);
   const hospitalToggle = isHospital
     ? `<div class="view-toggle" role="tablist">
-        <button type="button" class="vt-btn ${catId === 'hospital' ? 'active' : ''}" data-action="hospital-view" data-view="visits">🏥 방문 기록 <span>${state.records.filter((r) => r.category === 'hospital').length}</span></button>
-        <button type="button" class="vt-btn ${catId === 'reservation' ? 'active' : ''}" data-action="hospital-view" data-view="reservations">📅 예약 <span>${state.records.filter((r) => r.category === 'reservation').length}</span></button>
+        <button type="button" class="vt-btn ${catId === 'hospital' ? 'active' : ''}" data-action="hospital-view" data-view="visits">방문 기록 <span>${state.records.filter((r) => r.category === 'hospital').length}</span></button>
+        <button type="button" class="vt-btn ${catId === 'reservation' ? 'active' : ''}" data-action="hospital-view" data-view="reservations">예약 <span>${state.records.filter((r) => r.category === 'reservation').length}</span></button>
       </div>`
     : '';
   const isTraining = catId === 'training';

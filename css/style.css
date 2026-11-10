@@ -1056,9 +1056,15 @@ body.is-demo .demo-badge { display: inline-block; }
   .resume-doc th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
 
-/* 병원 탭 방문 기록 / 예약 전환 */
-.view-toggle { display: inline-flex; padding: 3px; gap: 2px; border-radius: 11px; background: var(--surface-2); border: 1px solid var(--border); }
-.vt-btn { height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background .2s, color .2s; }
-.vt-btn span { font-size: 12px; opacity: .75; }
-.vt-btn:hover { color: var(--text); }
-.vt-btn.active { background: #fdba74; color: #7c2d12; }
+/* 병원 탭 방문 기록 / 예약 전환 (토스 스타일 세그먼트) */
+.view-toggle { display: inline-flex; padding: 4px; gap: 2px; border-radius: 14px; background: rgba(255, 255, 255, .06); border: 0; }
+.vt-btn { height: 36px; padding: 0 16px; border: 0; border-radius: 11px; background: transparent; color: #8b95a1; font: inherit; font-size: 14px; font-weight: 600; letter-spacing: -0.01em; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background .2s, color .2s, box-shadow .2s; }
+.vt-btn span { font-size: 13px; font-weight: 700; color: #6b7684; transition: color .2s; }
+.vt-btn:hover { color: #d1d6db; }
+.vt-btn.active { background: #3a3f4a; color: #fff; }
+.vt-btn.active span { color: #6aa8ff; }
+[data-theme="light"] .view-toggle { background: #e5e8eb; }
+[data-theme="light"] .vt-btn:hover { color: #4e5968; }
+[data-theme="light"] .vt-btn span { color: #b0b8c1; }
+[data-theme="light"] .vt-btn.active { background: #fff; color: #191f28; box-shadow: 0 1px 4px rgba(0, 27, 55, .1); }
+[data-theme="light"] .vt-btn.active span { color: #3182f6; }
