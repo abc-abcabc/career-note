@@ -1055,3 +1055,10 @@ body.is-demo .demo-badge { display: inline-block; }
   .resume-doc { width: auto; min-height: 0; padding: 0; margin: 0; box-shadow: none; border-radius: 0; }
   .resume-doc th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+/* 병원 탭 방문 기록 / 예약 전환 */
+.view-toggle { display: inline-flex; padding: 3px; gap: 2px; border-radius: 11px; background: var(--surface-2); border: 1px solid var(--border); }
+.vt-btn { height: 34px; padding: 0 12px; border: 0; border-radius: 8px; background: transparent; color: var(--muted); font: inherit; font-size: 13.5px; font-weight: 600; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: background .2s, color .2s; }
+.vt-btn span { font-size: 12px; opacity: .75; }
+.vt-btn:hover { color: var(--text); }
+.vt-btn.active { background: #fdba74; color: #7c2d12; }

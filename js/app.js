@@ -22,6 +22,7 @@ const state = {
   route: { view: 'dashboard', cat: null },
   search: '',
   filterYear: '',
+  hospitalView: 'visits',
   filterTag: '',
   filterCat: '',
   trainingFilterCat: '',
@@ -387,7 +388,7 @@ function viewDashboard() {
     <article class="card alert-card visit-card">
       <header class="card-head">
         <h2>📅 병원 예약</h2>
-        <a class="muted sm" href="#/c/reservation">전체 보기</a>
+        <a class="muted sm" href="#/c/hospital" data-action="hospital-view" data-view="reservations">전체 보기</a>
       </header>
       ${visits.length ? `<ul class="alert-list">${visits.map(({ r, d, sub }) => `<li class="visit ${d < 0 ? 'expired' : ''}" data-action="edit" data-id="${r.id}">
           <span class="al-icon">${r.category === 'reservation' ? '📅' : '🏥'}</span>
@@ -436,7 +437,7 @@ function runCountUps() {
 }
 
 /* ───────────────────────── 필터 바 ───────────────────────── */
-function filterBar(scope, { csvCat = '', showCat = false } = {}) {
+function filterBar(scope, { csvCat = '', showCat = false, extra = '' } = {}) {
   const years = new Set();
   scope.forEach((r) => {
     const sp = yearSpan(r);
@@ -455,6 +456,7 @@ function filterBar(scope, { csvCat = '', showCat = false } = {}) {
         <option value="desc" ${state.sort === 'desc' ? 'selected' : ''}>최신순</option>
         <option value="asc" ${state.sort === 'asc' ? 'selected' : ''}>오래된순</option>
       </select>
+      ${extra}
       ${active ? '<button class="btn btn-ghost sm" data-action="reset-filters">필터 초기화</button>' : ''}
       <span class="spacer"></span>
       <button class="btn btn-ghost sm" data-action="csv" data-cat="${csvCat}" id="btn-csv">⬇ CSV 내보내기</button>
@@ -471,9 +473,18 @@ function categorySummary(c, scope) {
   return '';
 }
 
-function viewCategory(catId) {
+function viewCategory(pageCat) {
+  const isHospital = pageCat === 'hospital';
+  const catId = isHospital && state.hospitalView === 'reservations' ? 'reservation' : pageCat;
   const c = CATEGORY_MAP[catId];
+  const hc = CATEGORY_MAP[pageCat];
   const allInCat = state.records.filter((r) => r.category === catId);
+  const hospitalToggle = isHospital
+    ? `<div class="view-toggle" role="tablist">
+        <button type="button" class="vt-btn ${catId === 'hospital' ? 'active' : ''}" data-action="hospital-view" data-view="visits">🏥 방문 기록 <span>${state.records.filter((r) => r.category === 'hospital').length}</span></button>
+        <button type="button" class="vt-btn ${catId === 'reservation' ? 'active' : ''}" data-action="hospital-view" data-view="reservations">📅 예약 <span>${state.records.filter((r) => r.category === 'reservation').length}</span></button>
+      </div>`
+    : '';
   const isTraining = catId === 'training';
   const scope = isTraining && state.trainingFilterCat
     ? allInCat.filter((r) => (r.trainingCategory || '학교 관련') === state.trainingFilterCat)
@@ -511,16 +522,16 @@ function viewCategory(catId) {
     : `총 <b>${scope.length}건</b>`;
 
   return `
-  <header class="page-head" style="--c:${c.color}">
-    <div class="ph-icon">${c.icon}</div>
-    <div class="ph-text"><h1>${c.name}</h1><p>${c.desc} · ${countDesc}${categorySummary(c, scope)}</p></div>
+  <header class="page-head" style="--c:${hc.color}">
+    <div class="ph-icon">${hc.icon}</div>
+    <div class="ph-text"><h1>${hc.name}</h1><p>${hc.desc} · ${countDesc}${categorySummary(c, scope)}</p></div>
     <div class="ph-actions" style="display:flex;gap:8px;align-items:center;">
       ${isTraining ? `<button class="btn btn-ghost" data-action="upload-excel" title="나이스(NEIS) 또는 교육연수원 엑셀 파일 바로 불러오기">📊 엑셀 가져오기</button>` : ''}
       <button class="btn btn-primary" data-action="add" data-cat="${c.id}">＋ ${c.name} 추가</button>
     </div>
   </header>
   ${subcatBarHTML}
-  ${scope.length ? filterBar(scope, { csvCat: c.id }) : ''}
+  ${scope.length || isHospital ? filterBar(scope, { csvCat: c.id, extra: hospitalToggle }) : ''}
   ${list.length ? `<div class="record-grid">${list.map(recordCard).join('')}</div>` : emptyState(c, scope.length)}`;
 }
 
@@ -1478,6 +1489,7 @@ function bindEvents() {
       case 'pick-cat': state.modal.cat = cat; renderForm(null); break;
       case 'back-picker': state.modal.cat = null; renderPicker(); break;
       case 'close-modal': closeModal(); break;
+      case 'hospital-view': state.hospitalView = t.dataset.view === 'reservations' ? 'reservations' : 'visits'; render(); break;
       case 'training-subcat': state.trainingFilterCat = subcat || ''; render(); break;
       case 'manage-training-cats': openTrainingCatModal(); break;
       case 'close-training-cat-modal': closeTrainingCatModal(); break;
