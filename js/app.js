@@ -27,7 +27,7 @@ const state = {
   trainingFilterCat: '',
   sort: 'desc',
   goalYear: THIS_YEAR,
-  resume: { cats: CATEGORIES.filter((c) => !['dailylog', 'health'].includes(c.id)).map((c) => c.id), from: '', to: '', desc: false, profile: true },
+  resume: { cats: CATEGORIES.filter((c) => !['dailylog', 'health', 'hospital'].includes(c.id)).map((c) => c.id), from: '', to: '', desc: false, profile: true },
   modal: { cat: null, record: null, fromPicker: false },
 };
 
@@ -170,7 +170,7 @@ const skeleton = () =>
 
 /* ───────────────────────── 사이드바 ───────────────────────── */
 function renderNavCats() {
-  $('#nav-cats').innerHTML = CATEGORIES.filter((c) => !['dailylog', 'health'].includes(c.id)).map(
+  $('#nav-cats').innerHTML = CATEGORIES.filter((c) => !['dailylog', 'health', 'hospital'].includes(c.id)).map(
     (c) => `<a href="#/c/${c.id}" class="nav-item" data-view="category" data-cat="${c.id}" style="--c:${c.color}">
       <span class="ni-icon">${c.icon}</span><span class="ni-text">${c.name}</span><span class="ni-count" data-count="${c.id}">0</span></a>`
   ).join('');
@@ -259,6 +259,20 @@ function expiryBadge(r) {
   return `<span class="badge badge-muted">~${fmtDate(r.expiryDate)}</span>`;
 }
 
+function visitBadge(r) {
+  if (r.category !== 'hospital' || !r.nextVisit) return '';
+  const d = daysUntil(r.nextVisit);
+  if (d < 0) return `<span class="badge badge-muted">지난 예약 ${fmtDate(r.nextVisit)}</span>`;
+  return `<span class="badge badge-visit">🗓 다음 예약 ${d === 0 ? 'D-Day' : `D-${d}`} · ${fmtDate(r.nextVisit)}${r.nextTime ? ' ' + esc(r.nextTime) : ''}</span>`;
+}
+
+function upcomingVisits() {
+  return state.records
+    .filter((r) => r.category === 'hospital' && r.nextVisit && daysUntil(r.nextVisit) >= 0)
+    .map((r) => ({ r, d: daysUntil(r.nextVisit) }))
+    .sort((a, b) => a.d - b.d);
+}
+
 const catPill = (c) => `<span class="cat-pill" style="--c:${c.color}">${c.icon} ${c.name}</span>`;
 
 /* ───────────────────────── 대시보드 ───────────────────────── */
@@ -280,6 +294,7 @@ function viewDashboard() {
   const yh = years.map((y) => sumBy(tr.filter((r) => trainingYear(r) === y), 'hours'));
   const maxH = Math.max(goal, ...yh, 1);
   const exp = expiringList();
+  const visits = upcomingVisits();
   const recent = [...R].sort((a, b) => tsOf(b.updatedAt) - tsOf(a.updatedAt)).slice(0, 6);
   const thisYearCount = R.filter((r) => yearOf(r) === THIS_YEAR).length;
   const awards = R.filter((r) => r.category === 'award').length;
@@ -358,6 +373,17 @@ function viewDashboard() {
           <span class="dday">${d < 0 ? `+${-d}일` : d === 0 ? 'D-Day' : `D-${d}`}</span></li>`;
       }).join('')}</ul>` : `<div class="empty-mini"><span>✅</span>다가오는 만료 일정이 없어요</div>`}
       <p class="hint">자격증·어학 성적에 만료일을 입력하면 자동으로 알려드려요.</p>
+    </article>
+
+    <article class="card alert-card visit-card">
+      <header class="card-head">
+        <h2>🏥 병원 예약</h2>
+        <a class="muted sm" href="#/c/hospital">전체 보기</a>
+      </header>
+      ${visits.length ? `<ul class="alert-list">${visits.map(({ r, d }) => `<li class="visit" data-action="edit" data-id="${r.id}">
+          <span class="al-icon">🏥</span>
+          <div class="al-text"><b>${esc(r.title)}</b><small>${fmtDate(r.nextVisit)}${r.nextTime ? ' ' + esc(r.nextTime) : ''}${r.department ? ' · ' + esc(r.department) : ''}</small></div>
+          <span class="dday">${d === 0 ? 'D-Day' : `D-${d}`}</span></li>`).join('')}</ul>` : `<div class="empty-mini"><span>🩺</span>예정된 병원 예약이 없어요</div>`}
     </article>
   </section>
 
@@ -555,6 +581,7 @@ function recordCard(r) {
       ${trainingCatBadge}
       ${r.ongoing ? '<span class="badge badge-live">진행 중</span>' : ''}
       ${expiryBadge(r)}
+      ${visitBadge(r)}
     </div>
     ${showTitle ? `<h3 class="rc-title">${esc(r.title)}</h3>` : ''}
     ${healthBadges}

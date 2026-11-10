@@ -65,5 +65,8 @@ export const SAMPLE_RECORDS = [
     tags: ['웨이트', '건강'],
   },
 
+  { category: 'hospital', title: '서울튼튼내과', date: '2026-11-05', department: '내과', reason: '목감기', nextVisit: '2026-11-19', nextTime: '오후 3시', desc: '약 5일분 처방, 증상 지속 시 재방문.' },
+  { category: 'hospital', title: '맑은눈안과', date: '2026-10-20', department: '안과', reason: '정기 검진', desc: '이상 없음.' },
+
   { category: 'etc', title: '교육 신문 인터뷰 – AI 수업 사례', etcType: '언론 보도', org: '한국교육신문', date: '2025-11-12', tags: ['AI'] },
 ];

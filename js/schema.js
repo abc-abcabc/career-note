@@ -165,6 +165,20 @@ export const CATEGORIES = [
     ],
   },
   {
+    id: 'hospital', name: '병원', icon: '🏥', color: '#f43f5e', period: false,
+    desc: '병원 방문 기록 · 다음 예약 일정',
+    detailKeys: ['department', 'reason'],
+    fields: [
+      { key: 'title', label: '병원명', type: 'text', required: true, placeholder: '예: 서울튼튼내과', full: true },
+      { key: 'date', label: '방문일', type: 'date', required: true },
+      { key: 'department', label: '진료과', type: 'select', allowCustom: true, options: ['내과', '정형외과', '이비인후과', '피부과', '안과', '치과', '산부인과', '비뇨기과', '소아과', '신경과', '정신건강의학과', '한의원', '검진센터', '직접 입력…'], placeholder: '직접 입력 (예: 재활의학과)' },
+      { key: 'reason', label: '증상 · 진단명', type: 'text', placeholder: '예: 목감기, 정기검진, 허리 통증', full: true },
+      { key: 'nextVisit', label: '다음 예약일', type: 'date' },
+      { key: 'nextTime', label: '예약 시간', type: 'text', placeholder: '예: 오후 3시 30분' },
+      { key: 'desc', label: '진료 내용 · 처방', type: 'textarea', placeholder: '의사 소견, 처방약, 주의사항 등', full: true },
+    ],
+  },
+  {
     id: 'etc', name: '기타', icon: '📝', color: '#94a3b8', period: false,
     desc: '그 밖의 모든 기록',
     detailKeys: ['etcType'],
