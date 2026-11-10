@@ -179,6 +179,19 @@ export const CATEGORIES = [
     ],
   },
   {
+    id: 'reservation', name: '예약', icon: '📅', color: '#f472b6', period: false,
+    desc: '병원 · 시술 재예약 필요 일정 관리',
+    detailKeys: ['reason'],
+    fields: [
+      { key: 'title', label: '병원 · 시술명', type: 'text', required: true, placeholder: '예: 연세피부과, 세예의원 제모', full: true },
+      { key: 'status', label: '상태', type: 'select', options: ['예약 필요', '예약 완료'] },
+      { key: 'date', label: '예약 필요 시점 (이 날짜쯤 예약)', type: 'date', required: true },
+      { key: 'reason', label: '시술 · 내용', type: 'text', placeholder: '예: 제모, 보톡스, 정기 진료', full: true },
+      { key: 'bookedDate', label: '예약 확정일 (예약 완료 시)', type: 'date' },
+      { key: 'desc', label: '메모', type: 'textarea', placeholder: '예약 방법, 전화번호, 준비할 것 등', full: true },
+    ],
+  },
+  {
     id: 'etc', name: '기타', icon: '📝', color: '#94a3b8', period: false,
     desc: '그 밖의 모든 기록',
     detailKeys: ['etcType'],

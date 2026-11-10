@@ -27,7 +27,7 @@ const state = {
   trainingFilterCat: '',
   sort: 'desc',
   goalYear: THIS_YEAR,
-  resume: { cats: CATEGORIES.filter((c) => !['dailylog', 'health', 'hospital'].includes(c.id)).map((c) => c.id), from: '', to: '', desc: false, profile: true },
+  resume: { cats: CATEGORIES.filter((c) => !['dailylog', 'health', 'hospital', 'reservation'].includes(c.id)).map((c) => c.id), from: '', to: '', desc: false, profile: true },
   modal: { cat: null, record: null, fromPicker: false },
 };
 
@@ -170,7 +170,7 @@ const skeleton = () =>
 
 /* ───────────────────────── 사이드바 ───────────────────────── */
 function renderNavCats() {
-  $('#nav-cats').innerHTML = CATEGORIES.filter((c) => !['dailylog', 'health', 'hospital'].includes(c.id)).map(
+  $('#nav-cats').innerHTML = CATEGORIES.filter((c) => !['dailylog', 'health', 'hospital', 'reservation'].includes(c.id)).map(
     (c) => `<a href="#/c/${c.id}" class="nav-item" data-view="category" data-cat="${c.id}" style="--c:${c.color}">
       <span class="ni-icon">${c.icon}</span><span class="ni-text">${c.name}</span><span class="ni-count" data-count="${c.id}">0</span></a>`
   ).join('');
@@ -260,6 +260,12 @@ function expiryBadge(r) {
 }
 
 function visitBadge(r) {
+  if (r.category === 'reservation') {
+    if (r.status === '예약 완료') return `<span class="badge badge-muted">✅ 예약 완료${r.bookedDate ? ' ' + fmtDate(r.bookedDate) : ''}</span>`;
+    const d = daysUntil(r.date);
+    if (d < 0) return `<span class="badge badge-danger">예약 필요 · ${-d}일 지남</span>`;
+    return `<span class="badge badge-visit">예약 필요 · ${d === 0 ? '오늘' : `D-${d}`}</span>`;
+  }
   if (r.category !== 'hospital' || !r.nextVisit) return '';
   const d = daysUntil(r.nextVisit);
   if (d < 0) return '';
@@ -267,10 +273,13 @@ function visitBadge(r) {
 }
 
 function upcomingVisits() {
-  return state.records
+  const visits = state.records
     .filter((r) => r.category === 'hospital' && r.nextVisit && daysUntil(r.nextVisit) >= 0)
-    .map((r) => ({ r, d: daysUntil(r.nextVisit) }))
-    .sort((a, b) => a.d - b.d);
+    .map((r) => ({ r, d: daysUntil(r.nextVisit), sub: `${fmtDate(r.nextVisit)}${r.nextTime ? ' ' + r.nextTime : ''}${r.department ? ' · ' + r.department : ''}` }));
+  const needed = state.records
+    .filter((r) => r.category === 'reservation' && r.status !== '예약 완료' && r.date)
+    .map((r) => ({ r, d: daysUntil(r.date), sub: `예약 필요 · ${fmtDate(r.date)}${r.reason ? ' · ' + r.reason : ''}` }));
+  return [...visits, ...needed].sort((a, b) => a.d - b.d);
 }
 
 const catPill = (c) => `<span class="cat-pill" style="--c:${c.color}">${c.icon} ${c.name}</span>`;
@@ -377,13 +386,13 @@ function viewDashboard() {
 
     <article class="card alert-card visit-card">
       <header class="card-head">
-        <h2>🏥 병원 예약</h2>
-        <a class="muted sm" href="#/c/hospital">전체 보기</a>
+        <h2>📅 병원 예약</h2>
+        <a class="muted sm" href="#/c/reservation">전체 보기</a>
       </header>
-      ${visits.length ? `<ul class="alert-list">${visits.map(({ r, d }) => `<li class="visit" data-action="edit" data-id="${r.id}">
-          <span class="al-icon">🏥</span>
-          <div class="al-text"><b>${esc(r.title)}</b><small>${fmtDate(r.nextVisit)}${r.nextTime ? ' ' + esc(r.nextTime) : ''}${r.department ? ' · ' + esc(r.department) : ''}</small></div>
-          <span class="dday">${d === 0 ? 'D-Day' : `D-${d}`}</span></li>`).join('')}</ul>` : `<div class="empty-mini"><span>🩺</span>예정된 병원 예약이 없어요</div>`}
+      ${visits.length ? `<ul class="alert-list">${visits.map(({ r, d, sub }) => `<li class="visit ${d < 0 ? 'expired' : ''}" data-action="edit" data-id="${r.id}">
+          <span class="al-icon">${r.category === 'reservation' ? '📅' : '🏥'}</span>
+          <div class="al-text"><b>${esc(r.title)}</b><small>${esc(sub)}</small></div>
+          <span class="dday">${d < 0 ? `+${-d}일` : d === 0 ? 'D-Day' : `D-${d}`}</span></li>`).join('')}</ul>` : `<div class="empty-mini"><span>🩺</span>예정된 병원 예약이 없어요</div>`}
     </article>
   </section>
 
