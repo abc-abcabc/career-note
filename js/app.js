@@ -262,7 +262,7 @@ function expiryBadge(r) {
 function visitBadge(r) {
   if (r.category !== 'hospital' || !r.nextVisit) return '';
   const d = daysUntil(r.nextVisit);
-  if (d < 0) return `<span class="badge badge-muted">지난 예약 ${fmtDate(r.nextVisit)}</span>`;
+  if (d < 0) return '';
   return `<span class="badge badge-visit">🗓 다음 예약 ${d === 0 ? 'D-Day' : `D-${d}`} · ${fmtDate(r.nextVisit)}${r.nextTime ? ' ' + esc(r.nextTime) : ''}</span>`;
 }
 
