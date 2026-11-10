@@ -165,7 +165,7 @@ export const CATEGORIES = [
     ],
   },
   {
-    id: 'hospital', name: '병원', icon: '🏥', color: '#f43f5e', period: false,
+    id: 'hospital', name: '병원', icon: '🏥', color: '#fdba74', period: false,
     desc: '병원 방문 기록 · 다음 예약 일정',
     detailKeys: ['department', 'reason'],
     fields: [
