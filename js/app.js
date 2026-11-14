@@ -138,11 +138,49 @@ function handleError(err) {
 function parseHash() {
   const [view, arg] = location.hash.replace(/^#\/?/, '').split('/');
   if (view === 'c' && CATEGORY_MAP[arg]) return { view: 'category', cat: arg };
-  if (['dashboard', 'timeline', 'resume', 'settings'].includes(view)) return { view, cat: null };
+  if (['dashboard', 'timeline', 'resume', 'settings', 'apps'].includes(view)) return { view, cat: null };
   return { view: 'dashboard', cat: null };
 }
 
-const PAGE_TITLES = { dashboard: '대시보드', timeline: '타임라인', resume: '이력서 출력', settings: '설정' };
+const PAGE_TITLES = { dashboard: '대시보드', timeline: '타임라인', resume: '이력서 출력', settings: '설정', apps: '내 웹앱' };
+
+/* ───────────────────────── 내 웹앱 (외부 링크) ───────────────────────── */
+const APPS_KEY = 'careernote.apps';
+function loadApps() {
+  try { const a = JSON.parse(localStorage.getItem(APPS_KEY)); return Array.isArray(a) ? a : []; } catch { return []; }
+}
+function saveApps(list) {
+  try { localStorage.setItem(APPS_KEY, JSON.stringify(list)); } catch { /* ignore */ }
+}
+function viewApps() {
+  const apps = loadApps();
+  const cards = apps.length
+    ? apps.map((a, i) => `
+      <div class="card" style="display:flex;align-items:center;gap:12px;justify-content:space-between">
+        <a class="link" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer" style="flex:1;min-width:0">
+          <strong>${esc(a.icon || '🌐')} ${esc(a.name)}</strong>
+          <div class="muted sm" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.url)}</div>
+        </a>
+        <a class="btn btn-primary" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">열기 ↗</a>
+        <button class="btn btn-ghost" data-action="delete-app" data-idx="${i}" aria-label="삭제">🗑</button>
+      </div>`).join('')
+    : '<p class="muted">아직 등록된 웹앱이 없어요. 아래에서 추가해 보세요.</p>';
+  return `
+  <header class="page-head">
+    <div class="ph-icon">🔗</div>
+    <div class="ph-text"><h1>내 웹앱</h1><p>다른 웹앱으로 바로 이동할 수 있는 링크 모음입니다.</p></div>
+  </header>
+  <div class="stack">${cards}</div>
+  <form class="card" id="app-form" autocomplete="off" style="margin-top:16px">
+    <h2>➕ 웹앱 추가</h2>
+    <div class="form-grid">
+      <div class="field"><label for="app-name">이름</label><input class="input" id="app-name" name="name" required placeholder="출결 관리"></div>
+      <div class="field"><label for="app-icon">아이콘 (이모지)</label><input class="input" id="app-icon" name="icon" maxlength="4" placeholder="📚"></div>
+      <div class="field"><label for="app-url">주소 (URL)</label><input class="input" id="app-url" name="url" type="url" required placeholder="https://..."></div>
+    </div>
+    <div class="form-actions"><button class="btn btn-primary" type="submit">추가</button></div>
+  </form>`;
+}
 
 function render() {
   if (!state.user) return;
@@ -161,6 +199,7 @@ function render() {
     category: () => viewCategory(cat),
     resume: viewResume,
     settings: viewSettings,
+    apps: viewApps,
   }[view]();
   v.innerHTML = `<div class="view-inner">${html}</div>`;
   if (view === 'dashboard') runCountUps();
@@ -1499,6 +1538,7 @@ function bindEvents() {
       case 'csv': exportCSV(cat); break;
       case 'goal-prev': state.goalYear--; render(); break;
       case 'goal-next': state.goalYear++; render(); break;
+      case 'delete-app': { const l = loadApps(); l.splice(Number(t.dataset.idx), 1); saveApps(l); render(); break; }
       case 'print': window.print(); break;
       case 'rcat-all': state.resume.cats = CATEGORIES.map((c) => c.id); render(); break;
       case 'rcat-none': state.resume.cats = []; render(); break;
@@ -1550,6 +1590,13 @@ function bindEvents() {
   document.addEventListener('submit', async (e) => {
     e.preventDefault();
     if (e.target.id === 'record-form') saveRecord(e.target);
+    if (e.target.id === 'app-form') {
+      const fd = Object.fromEntries(new FormData(e.target));
+      if (!/^https?:\/\//i.test(fd.url)) return toast('주소는 http:// 또는 https:// 로 시작해야 해요.', 'error');
+      saveApps([...loadApps(), { name: fd.name.trim(), icon: fd.icon.trim(), url: fd.url.trim() }]);
+      render();
+      toast('웹앱을 추가했어요.');
+    }
     if (e.target.id === 'settings-form') {
       const fd = Object.fromEntries(new FormData(e.target));
       fd.trainingGoal = Number(fd.trainingGoal) || 0;
