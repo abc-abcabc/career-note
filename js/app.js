@@ -23,6 +23,7 @@ const state = {
   search: '',
   filterYear: '',
   hospitalView: 'visits',
+  growthView: 'dailylog',
   filterTag: '',
   filterCat: '',
   trainingFilterCat: '',
@@ -137,6 +138,7 @@ function handleError(err) {
 /* ───────────────────────── 라우팅 ───────────────────────── */
 function parseHash() {
   const [view, arg] = location.hash.replace(/^#\/?/, '').split('/');
+  if (view === 'c' && arg === 'health') { state.growthView = 'health'; return { view: 'category', cat: 'dailylog' }; }
   if (view === 'c' && CATEGORY_MAP[arg]) return { view: 'category', cat: arg };
   if (['dashboard', 'timeline', 'resume', 'settings', 'apps'].includes(view)) return { view, cat: null };
   return { view: 'dashboard', cat: null };
@@ -189,7 +191,7 @@ function render() {
     const active = a.dataset.view === view && (view !== 'category' || a.dataset.cat === cat);
     a.classList.toggle('active', active);
   });
-  $('#page-title').textContent = view === 'category' ? CATEGORY_MAP[cat].name : PAGE_TITLES[view];
+  $('#page-title').textContent = view === 'category' ? (cat === 'dailylog' ? GROWTH_PAGE.name : CATEGORY_MAP[cat].name) : PAGE_TITLES[view];
 
   const v = $('#view');
   if (!state.loaded) { v.innerHTML = skeleton(); return; }
@@ -221,6 +223,8 @@ function renderCounts() {
     const el = $(`[data-count="${c.id}"]`);
     if (el) el.textContent = state.records.filter((r) => r.category === c.id).length;
   });
+  const growthEl = $('[data-count="growth"]');
+  if (growthEl) growthEl.textContent = state.records.filter((r) => r.category === 'dailylog' || r.category === 'health').length;
   const n = expiringList().length;
   const badge = $('#nav-alert');
   badge.textContent = n;
@@ -512,16 +516,27 @@ function categorySummary(c, scope) {
   return '';
 }
 
+const GROWTH_PAGE = { name: '성장 건강', icon: '🌿', color: '#10b981', desc: '실천과 배움, 운동 · 영양제 · 음주 등 건강 기록' };
+
 function viewCategory(pageCat) {
   const isHospital = pageCat === 'hospital';
-  const catId = isHospital && state.hospitalView === 'reservations' ? 'reservation' : pageCat;
+  const isGrowth = pageCat === 'dailylog';
+  const catId = isHospital && state.hospitalView === 'reservations' ? 'reservation'
+    : isGrowth && state.growthView === 'health' ? 'health'
+    : pageCat;
   const c = CATEGORY_MAP[catId];
-  const hc = CATEGORY_MAP[pageCat];
+  const hc = isGrowth ? GROWTH_PAGE : CATEGORY_MAP[pageCat];
   const allInCat = state.records.filter((r) => r.category === catId);
+  const countOf = (id) => state.records.filter((r) => r.category === id).length;
   const hospitalToggle = isHospital
     ? `<div class="view-toggle" role="tablist">
-        <button type="button" class="vt-btn ${catId === 'hospital' ? 'active' : ''}" data-action="hospital-view" data-view="visits">방문 기록 <span>${state.records.filter((r) => r.category === 'hospital').length}</span></button>
-        <button type="button" class="vt-btn ${catId === 'reservation' ? 'active' : ''}" data-action="hospital-view" data-view="reservations">예약 <span>${state.records.filter((r) => r.category === 'reservation').length}</span></button>
+        <button type="button" class="vt-btn ${catId === 'hospital' ? 'active' : ''}" data-action="hospital-view" data-view="visits">방문 기록 <span>${countOf('hospital')}</span></button>
+        <button type="button" class="vt-btn ${catId === 'reservation' ? 'active' : ''}" data-action="hospital-view" data-view="reservations">예약 <span>${countOf('reservation')}</span></button>
+      </div>`
+    : isGrowth
+    ? `<div class="view-toggle" role="tablist">
+        <button type="button" class="vt-btn ${catId === 'dailylog' ? 'active' : ''}" data-action="growth-view" data-view="dailylog">🌱 성장일지 <span>${countOf('dailylog')}</span></button>
+        <button type="button" class="vt-btn ${catId === 'health' ? 'active' : ''}" data-action="growth-view" data-view="health">💪 건강 <span>${countOf('health')}</span></button>
       </div>`
     : '';
   const isTraining = catId === 'training';
@@ -570,7 +585,7 @@ function viewCategory(pageCat) {
     </div>
   </header>
   ${subcatBarHTML}
-  ${scope.length || isHospital ? filterBar(scope, { csvCat: c.id, extra: hospitalToggle }) : ''}
+  ${scope.length || isHospital || isGrowth ? filterBar(scope, { csvCat: c.id, extra: hospitalToggle }) : ''}
   ${list.length ? `<div class="record-grid">${list.map(recordCard).join('')}</div>` : emptyState(c, scope.length)}`;
 }
 
@@ -1528,6 +1543,7 @@ function bindEvents() {
       case 'pick-cat': state.modal.cat = cat; renderForm(null); break;
       case 'back-picker': state.modal.cat = null; renderPicker(); break;
       case 'close-modal': closeModal(); break;
+      case 'growth-view': state.growthView = t.dataset.view === 'health' ? 'health' : 'dailylog'; render(); break;
       case 'hospital-view': state.hospitalView = t.dataset.view === 'reservations' ? 'reservations' : 'visits'; render(); break;
       case 'training-subcat': state.trainingFilterCat = subcat || ''; render(); break;
       case 'manage-training-cats': openTrainingCatModal(); break;
