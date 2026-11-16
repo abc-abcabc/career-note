@@ -328,6 +328,22 @@ function upcomingVisits() {
   return [...visits, ...needed].sort((a, b) => a.d - b.d);
 }
 
+/** 예약 확정: '예약 완료'로 표시한 예약 + 아직 지나지 않은 다음 예약일이 있는 병원 기록 */
+function confirmedAppointments() {
+  return state.records.filter((r) =>
+    (r.category === 'reservation' && r.status === '예약 완료')
+    || (r.category === 'hospital' && r.nextVisit && daysUntil(r.nextVisit) >= 0));
+}
+const appointmentDateOf = (r) => (r.category === 'reservation' ? r.bookedDate : r.nextVisit) || '';
+/** 다가오는 예약을 가까운 순으로, 날짜가 없거나 지난 예약은 뒤에 (최근 순) */
+function sortConfirmed(list) {
+  const today = todayStr();
+  const upcoming = (r) => appointmentDateOf(r) && appointmentDateOf(r) >= today;
+  const up = list.filter(upcoming).sort((a, b) => appointmentDateOf(a).localeCompare(appointmentDateOf(b)));
+  const rest = list.filter((r) => !upcoming(r)).sort((a, b) => appointmentDateOf(b).localeCompare(appointmentDateOf(a)));
+  return [...up, ...rest];
+}
+
 const catPill = (c) => `<span class="cat-pill" style="--c:${c.color}">${c.icon} ${c.name}</span>`;
 
 /* ───────────────────────── 대시보드 ───────────────────────── */
@@ -695,17 +711,19 @@ function viewCategory(pageCat) {
   const isGrowth = pageCat === 'dailylog';
   const growthView = isGrowth ? state.growthView : '';
   if (isGrowth && growthView === 'report') return viewGrowthReport();
-  const catId = isHospital && state.hospitalView === 'reservations' ? 'reservation'
+  const isConfirmed = isHospital && state.hospitalView === 'confirmed';
+  const catId = isHospital && (state.hospitalView === 'reservations' || isConfirmed) ? 'reservation'
     : isGrowth && growthView === 'health' ? 'health'
     : pageCat;
   const c = CATEGORY_MAP[catId];
   const hc = isGrowth ? GROWTH_PAGE : CATEGORY_MAP[pageCat];
-  const allInCat = state.records.filter((r) => r.category === catId);
+  const allInCat = isConfirmed ? confirmedAppointments() : state.records.filter((r) => r.category === catId);
   const countOf = (id) => state.records.filter((r) => r.category === id).length;
   const hospitalToggle = isHospital
     ? `<div class="view-toggle" role="tablist">
         <button type="button" class="vt-btn ${catId === 'hospital' ? 'active' : ''}" data-action="hospital-view" data-view="visits">방문 기록 <span>${countOf('hospital')}</span></button>
-        <button type="button" class="vt-btn ${catId === 'reservation' ? 'active' : ''}" data-action="hospital-view" data-view="reservations">예약 <span>${countOf('reservation')}</span></button>
+        <button type="button" class="vt-btn ${catId === 'reservation' && !isConfirmed ? 'active' : ''}" data-action="hospital-view" data-view="reservations">예약 <span>${countOf('reservation')}</span></button>
+        <button type="button" class="vt-btn ${isConfirmed ? 'active' : ''}" data-action="hospital-view" data-view="confirmed">예약 확정 <span>${confirmedAppointments().length}</span></button>
       </div>`
     : isGrowth ? growthToggle(catId)
     : '';
@@ -713,7 +731,7 @@ function viewCategory(pageCat) {
   const scope = isTraining && state.trainingFilterCat
     ? allInCat.filter((r) => (r.trainingCategory || '학교 관련') === state.trainingFilterCat)
     : allInCat;
-  const list = applyFilters(scope);
+  const list = isConfirmed ? sortConfirmed(applyFilters(scope)) : applyFilters(scope);
 
   let subcatBarHTML = '';
   if (isTraining) {
@@ -748,15 +766,21 @@ function viewCategory(pageCat) {
   return `
   <header class="page-head" style="--c:${hc.color}">
     <div class="ph-icon">${hc.icon}</div>
-    <div class="ph-text"><h1>${hc.name}</h1><p>${hc.desc} · ${countDesc}${categorySummary(c, scope)}</p></div>
+    <div class="ph-text"><h1>${hc.name}</h1><p>${isConfirmed ? '확정된 병원 예약 · 예약 완료 + 다음 예약일이 있는 방문' : hc.desc} · ${countDesc}${categorySummary(c, scope)}</p></div>
     <div class="ph-actions" style="display:flex;gap:8px;align-items:center;">
       ${isTraining ? `<button class="btn btn-ghost" data-action="upload-excel" title="나이스(NEIS) 또는 교육연수원 엑셀 파일 바로 불러오기">📊 엑셀 가져오기</button>` : ''}
-      <button class="btn btn-primary" data-action="add" data-cat="${c.id}">＋ ${c.name} 추가</button>
+      ${isConfirmed
+        ? `<button class="btn btn-primary" data-action="add-confirmed">＋ 예약 확정 추가</button>`
+        : `<button class="btn btn-primary" data-action="add" data-cat="${c.id}">＋ ${c.name} 추가</button>`}
     </div>
   </header>
   ${subcatBarHTML}
   ${scope.length || isHospital || isGrowth ? filterBar(scope, { csvCat: c.id, extra: hospitalToggle }) : ''}
-  ${list.length ? `<div class="record-grid">${list.map(recordCard).join('')}</div>` : emptyState(c, scope.length)}`;
+  ${list.length ? `<div class="record-grid">${list.map(recordCard).join('')}</div>`
+    : isConfirmed && !scope.length ? `<div class="empty" style="--c:${c.color}"><div class="empty-icon">✅</div><h3>확정된 예약이 아직 없어요</h3>
+        <p>예약의 상태를 ‘예약 완료’로 바꾸거나, 병원 기록에 다음 예약일을 입력하면 여기에 모여요.</p>
+        <button class="btn btn-primary" data-action="add-confirmed">＋ 예약 확정 추가</button></div>`
+    : emptyState(c, scope.length)}`;
 }
 
 function healthItemIcon(name = '') {
@@ -2111,7 +2135,8 @@ function bindEvents() {
         render();
         break;
       }
-      case 'hospital-view': state.hospitalView = t.dataset.view === 'reservations' ? 'reservations' : 'visits'; render(); break;
+      case 'hospital-view': state.hospitalView = ['reservations', 'confirmed'].includes(t.dataset.view) ? t.dataset.view : 'visits'; render(); break;
+      case 'add-confirmed': openModal({ cat: 'reservation', prefill: { status: '예약 완료', date: todayStr() } }); break;
       case 'training-subcat': state.trainingFilterCat = subcat || ''; render(); break;
       case 'manage-training-cats': openTrainingCatModal(); break;
       case 'close-training-cat-modal': closeTrainingCatModal(); break;
