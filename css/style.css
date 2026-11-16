@@ -626,6 +626,8 @@ body.is-demo .demo-badge { display: inline-block; }
 [data-theme="light"] .health-item-row { background: #ffffff; border-color: #cbd5e1; }
 .hir-head { display: flex; align-items: center; gap: 6px; }
 .hir-icon { font-size: 19px; flex-shrink: 0; min-width: 22px; text-align: center; }
+.growth-defaults-bar { display: flex; flex-wrap: wrap; gap: 8px; }
+.growth-defaults-hint { margin: 0; line-height: 1.5; }
 button.hir-icon-btn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--border-2); background: var(--surface-2); cursor: pointer; display: grid; place-items: center; padding: 0; line-height: 1; transition: border-color .2s, background .2s; }
 button.hir-icon-btn:hover, button.hir-icon-btn:focus-visible { border-color: var(--accent); background: var(--surface-3); outline: none; }
 .icon-pop { position: fixed; z-index: 10000; width: min(340px, calc(100vw - 16px)); padding: 10px; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--border-2); box-shadow: 0 12px 36px rgba(0, 0, 0, .35); }

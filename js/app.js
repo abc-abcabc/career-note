@@ -787,6 +787,16 @@ function getHealthPlaceholder(name = '') {
 
 /* ───────────────────────── 성장 항목 ───────────────────────── */
 const GROWTH_DEFAULT_ITEMS = ['독서', '수업 연구', '연수·강의'];
+/** 새 기록을 열 때 기본으로 나오는 성장 항목 — 사용자가 저장한 값이 있으면 그것을, 없으면 처음 구성을 사용 */
+function getGrowthDefaults() {
+  const saved = state.settings?.growthDefaultItems;
+  const list = Array.isArray(saved)
+    ? saved.filter((it) => it && String(it.name || '').trim()).map((it) => ({ name: String(it.name).trim(), ...(it.icon ? { icon: it.icon } : {}) }))
+    : null;
+  // 저장된 값이 없으면(null) 처음 구성. 저장된 빈 목록은 "기본 항목 없음"으로 존중
+  return Array.isArray(saved) ? list : GROWTH_DEFAULT_ITEMS.map((name) => ({ name }));
+}
+
 const GROWTH_SUGGESTIONS = ['독서', '수업 연구', '연수·강의', '자격증 공부', '영어', '글쓰기', '에듀테크', '연구회·나눔', '영상 시청', '팟캐스트', '자기계발'];
 
 // 위에서부터 먼저 맞는 규칙이 적용돼요. 구체적인 단어(영어, 영상 등)를 앞에 둡니다.
@@ -1395,7 +1405,7 @@ function fieldHTML(f, val) {
       break;
     }
     case 'growth-items': {
-      const items = Array.isArray(val) && val.length ? val : GROWTH_DEFAULT_ITEMS.map((name) => ({ name, value: '', time: '' }));
+      const items = Array.isArray(val) && val.length ? val : getGrowthDefaults().map((d) => ({ ...d, value: '', time: '' }));
       control = `
         <div class="health-items-builder" id="growth-items-builder">
           <datalist id="growth-name-suggestions">
@@ -1408,6 +1418,11 @@ function fieldHTML(f, val) {
           <button type="button" class="btn btn-ghost sm add-health-item-btn" id="btn-add-growth-item">
             ＋ 새 항목 추가 (예: 글쓰기, 영어 등)
           </button>
+          <div class="growth-defaults-bar">
+            <button type="button" class="btn btn-ghost sm" id="btn-save-growth-defaults" title="지금 보이는 항목 이름과 아이콘을 앞으로 새 기록의 기본 항목으로 저장해요">⭐ 지금 항목을 기본으로 저장</button>
+            <button type="button" class="btn btn-ghost sm" id="btn-reset-growth-defaults" title="독서·수업 연구·연수·강의로 되돌려요">↺ 처음 구성으로</button>
+          </div>
+          <p class="muted sm growth-defaults-hint">항목을 추가·삭제·수정한 뒤 ‘기본으로 저장’을 누르면, 다음 새 기록부터 그 항목들이 기본으로 나와요.</p>
         </div>`;
       break;
     }
@@ -1593,6 +1608,32 @@ function renderForm(data) {
     addGrowthBtn.addEventListener('click', () => {
       growthListEl.insertAdjacentHTML('beforeend', growthRowHTML({ name: '', value: '', time: '' }));
       growthListEl.lastElementChild.querySelector('.hir-name-input')?.focus();
+    });
+    $('#btn-save-growth-defaults', $('#modal-body'))?.addEventListener('click', async () => {
+      const seen = new Set();
+      const list = [...growthListEl.querySelectorAll('.health-item-row')].map((row) => {
+        const name = row.querySelector('.hir-name-input')?.value.trim() || '';
+        const icon = row.querySelector('.hir-icon-btn')?.dataset.icon || '';
+        return { name, ...(icon ? { icon } : {}) };
+      }).filter((it) => it.name && !seen.has(it.name) && seen.add(it.name));
+      state.settings = state.settings || {};
+      state.settings.growthDefaultItems = list;
+      try {
+        await store.saveSettings(state.settings);
+        toast(list.length ? `기본 항목 ${list.length}개를 저장했어요. (${list.map((it) => it.name).join(', ')})` : '기본 항목을 비웠어요. 새 기록은 빈 목록으로 시작해요.');
+      } catch (err) {
+        handleError(err);
+      }
+    });
+    $('#btn-reset-growth-defaults', $('#modal-body'))?.addEventListener('click', async () => {
+      state.settings = state.settings || {};
+      state.settings.growthDefaultItems = null;
+      try {
+        await store.saveSettings(state.settings);
+        toast('기본 항목을 처음 구성(독서·수업 연구·연수·강의)으로 되돌렸어요.');
+      } catch (err) {
+        handleError(err);
+      }
     });
     updateTotal();
   }
