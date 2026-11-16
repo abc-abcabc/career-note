@@ -172,6 +172,7 @@ export const CATEGORIES = [
     fields: [
       { key: 'title', label: '병원명', type: 'text', required: true, placeholder: '예: 서울튼튼내과', full: true },
       { key: 'date', label: '방문일', type: 'date', required: true },
+      { key: 'visitTime', label: '방문 시간', type: 'text', placeholder: '예: 오전 10시 30분' },
       { key: 'department', label: '진료과', type: 'select', allowCustom: true, options: ['내과', '정형외과', '이비인후과', '피부과', '안과', '치과', '산부인과', '비뇨기과', '소아과', '신경과', '정신건강의학과', '한의원', '검진센터', '직접 입력…'], placeholder: '직접 입력 (예: 재활의학과)' },
       { key: 'reason', label: '증상 · 진단명', type: 'text', placeholder: '예: 목감기, 정기검진, 허리 통증', full: true },
       { key: 'nextVisit', label: '다음 예약일', type: 'date' },
@@ -189,6 +190,7 @@ export const CATEGORIES = [
       { key: 'date', label: '예약 필요 시점 (이 날짜쯤 예약)', type: 'date', required: true },
       { key: 'reason', label: '시술 · 내용', type: 'text', placeholder: '예: 제모, 보톡스, 정기 진료', full: true },
       { key: 'bookedDate', label: '예약 확정일 (예약 완료 시)', type: 'date' },
+      { key: 'bookedTime', label: '예약 시간 (예약 완료 시)', type: 'text', placeholder: '예: 오후 3시 30분' },
       { key: 'desc', label: '메모', type: 'textarea', placeholder: '예약 방법, 전화번호, 준비할 것 등', full: true },
     ],
   },

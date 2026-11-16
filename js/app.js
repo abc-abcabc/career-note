@@ -307,7 +307,7 @@ function expiryBadge(r) {
 
 function visitBadge(r) {
   if (r.category === 'reservation') {
-    if (r.status === '예약 완료') return `<span class="badge badge-muted">✅ 예약 완료${r.bookedDate ? ' ' + fmtDate(r.bookedDate) : ''}</span>`;
+    if (r.status === '예약 완료') return `<span class="badge badge-muted">✅ 예약 완료${r.bookedDate ? ' ' + fmtDate(r.bookedDate) : ''}${r.bookedTime ? ' ' + esc(r.bookedTime) : ''}</span>`;
     const d = daysUntil(r.date);
     if (d < 0) return `<span class="badge badge-danger">예약 필요 · ${-d}일 지남</span>`;
     return `<span class="badge badge-visit">예약 필요 · ${d === 0 ? '오늘' : `D-${d}`}</span>`;
@@ -1072,7 +1072,7 @@ function recordCard(r) {
   return `
   <article class="record-card" style="--c:${c.color}" data-action="edit" data-id="${r.id}" tabindex="0">
     <div class="rc-top">
-      <span class="rc-period">${esc(fmtPeriod(r)) || '날짜 미입력'}</span>
+      <span class="rc-period">${esc(fmtPeriod(r) + (r.category === 'hospital' && r.visitTime ? ' ' + r.visitTime : '')) || '날짜 미입력'}</span>
       ${trainingCatBadge}
       ${r.ongoing ? '<span class="badge badge-live">진행 중</span>' : ''}
       ${expiryBadge(r)}
