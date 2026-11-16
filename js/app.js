@@ -1868,6 +1868,15 @@ function bindEvents() {
       else if ($('#record-modal').classList.contains('open')) closeModal();
       document.body.classList.remove('nav-open');
     }
+    // 백스페이스: 입력칸이 아닌 곳에서는 브라우저 기본 동작(뒤로가기 등)을 막아 창이 꺼지지 않게 함
+    if (e.key === 'Backspace') {
+      const t = e.target;
+      const editable = t && (t.isContentEditable ||
+        (t.tagName === 'TEXTAREA' && !t.readOnly && !t.disabled) ||
+        (t.tagName === 'INPUT' && !t.readOnly && !t.disabled &&
+          !/^(button|checkbox|radio|submit|reset|file|image|range|color)$/i.test(t.type)));
+      if (!editable) e.preventDefault();
+    }
     const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName);
     if (e.key === '/' && !typing && state.user) { e.preventDefault(); $('#search').focus(); }
     if (e.key === 'Enter' && document.activeElement?.matches('.record-card, .tl-card')) document.activeElement.click();
