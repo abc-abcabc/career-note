@@ -626,6 +626,16 @@ body.is-demo .demo-badge { display: inline-block; }
 [data-theme="light"] .health-item-row { background: #ffffff; border-color: #cbd5e1; }
 .hir-head { display: flex; align-items: center; gap: 6px; }
 .hir-icon { font-size: 19px; flex-shrink: 0; min-width: 22px; text-align: center; }
+button.hir-icon-btn { width: 38px; height: 38px; border-radius: 10px; border: 1px solid var(--border-2); background: var(--surface-2); cursor: pointer; display: grid; place-items: center; padding: 0; line-height: 1; transition: border-color .2s, background .2s; }
+button.hir-icon-btn:hover, button.hir-icon-btn:focus-visible { border-color: var(--accent); background: var(--surface-3); outline: none; }
+.icon-pop { position: fixed; z-index: 10000; width: min(340px, calc(100vw - 16px)); padding: 10px; border-radius: 14px; background: var(--bg-2); border: 1px solid var(--border-2); box-shadow: 0 12px 36px rgba(0, 0, 0, .35); }
+[data-theme="light"] .icon-pop { background: #ffffff; }
+.icon-pop-auto { width: 100%; height: 34px; margin-bottom: 8px; border-radius: 9px; border: 1px dashed var(--border-2); background: transparent; color: var(--text-2); font-size: 13px; font-weight: 700; cursor: pointer; }
+.icon-pop-auto:hover, .icon-pop-auto.on { border-color: var(--accent); color: var(--text); background: var(--surface-2); }
+.icon-pop-grid { display: grid; grid-template-columns: repeat(10, 1fr); gap: 2px; }
+.icon-pop-item { aspect-ratio: 1; border: 1px solid transparent; border-radius: 8px; background: transparent; font-size: 19px; line-height: 1; cursor: pointer; padding: 0; display: grid; place-items: center; }
+.icon-pop-item:hover { background: var(--surface-3); }
+.icon-pop-item.on { border-color: var(--accent); background: var(--surface-2); }
 .hir-name-input { height: 38px !important; font-size: 13.5px !important; font-weight: 700 !important; padding: 0 10px !important; }
 .hir-val-input { height: 38px !important; font-size: 13.5px !important; padding: 0 12px !important; }
 .btn-remove-hir { width: 34px; height: 34px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; font-size: 14px; transition: all .2s; flex-shrink: 0; }

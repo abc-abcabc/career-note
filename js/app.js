@@ -604,7 +604,7 @@ function viewGrowthReport() {
   const maxItem = items[0]?.[1] || 1;
   const itemBars = items.length
     ? items.map(([name, m]) => `
-      <div class="rp-row"><span class="rp-name">${growthItemIcon(name)} ${esc(name)}</span>
+      <div class="rp-row"><span class="rp-name">${growthIconByName(name)} ${esc(name)}</span>
         <div class="rp-bar"><i style="width:${Math.max(4, (m / maxItem) * 100)}%"></i></div>
         <span class="rp-val">${fmtMinutes(m)} <em>${s.total ? Math.round((m / s.total) * 100) : 0}%</em></span></div>`).join('')
     : '<p class="rp-empty">이 기간에 시간이 기록된 성장 항목이 없어요.</p>';
@@ -787,19 +787,127 @@ function getHealthPlaceholder(name = '') {
 
 /* ───────────────────────── 성장 항목 ───────────────────────── */
 const GROWTH_DEFAULT_ITEMS = ['독서', '수업 연구', '연수·강의'];
-const GROWTH_SUGGESTIONS = ['독서', '수업 연구', '연수·강의', '자격증 공부', '영어', '글쓰기', '에듀테크', '연구회·나눔', '자기계발'];
+const GROWTH_SUGGESTIONS = ['독서', '수업 연구', '연수·강의', '자격증 공부', '영어', '글쓰기', '에듀테크', '연구회·나눔', '영상 시청', '팟캐스트', '자기계발'];
+
+// 위에서부터 먼저 맞는 규칙이 적용돼요. 구체적인 단어(영어, 영상 등)를 앞에 둡니다.
+const GROWTH_ICON_RULES = [
+  [/영어|외국어|회화|일본어|중국어|토익|토플/, '🔤'],
+  [/영상|동영상|유튜브|youtube|강연|ted|다큐|영화|시청/i, '🎬'],
+  [/팟캐스트|오디오북|오디오|라디오|듣기/, '🎧'],
+  [/독서|책|칼럼|논문|읽기|필사|도서/, '📚'],
+  [/연구회|나눔|협의|멘토|동료|토론|스터디|모임|공동체/, '🤝'],
+  [/에듀테크|ai|코딩|디지털|프로그램|프로그래밍|엑셀|ppt|앱|웹|컴퓨터/i, '💻'],
+  [/수업|교재|교육과정|평가|교안|지도안|학습지/, '🧑‍🏫'],
+  [/연수|강의|수강|세미나|워크숍|워크샵|특강|온라인 강좌/, '🎓'],
+  [/자격|시험|임용|검정|기출|문제/, '📝'],
+  [/글쓰기|블로그|집필|기록|일기|성찰|저널/, '✍️'],
+  [/연구|분석|실험|조사|통계|데이터/, '🔬'],
+  [/수학|계산|연산/, '🔢'],
+  [/과학/, '🧪'],
+  [/미술|그림|디자인|만들기|공예/, '🎨'],
+  [/음악|악기|노래|피아노|기타|합창/, '🎵'],
+  [/체육|운동|스포츠|걷기|달리기/, '🏃'],
+  [/사진|촬영|편집/, '📷'],
+  [/상담|코칭|대화|면담/, '💬'],
+  [/명상|마음|심리|힐링|휴식/, '🧘'],
+  [/봉사|나눔활동|기부/, '🙌'],
+  [/여행|답사|견학|체험|현장/, '🧭'],
+  [/업무|행정|정리|문서|공문/, '🗂️'],
+  [/자기계발|계발|성장|습관|목표/, '🚀'],
+  [/공부|학습|복습|예습/, '📖'],
+];
 
 function growthItemIcon(name = '') {
   const n = String(name).trim();
-  if (/독서|책|칼럼|논문/.test(n)) return '📚';
-  if (/수업|교재|교육과정|평가/.test(n)) return '🧑‍🏫';
-  if (/연수|강의|수강|세미나/.test(n)) return '🎓';
-  if (/자격|시험|공부|학습/.test(n)) return '📝';
-  if (/영어|외국어|회화/.test(n)) return '🔤';
-  if (/글쓰기|블로그|집필|기록/.test(n)) return '✍️';
-  if (/에듀테크|AI|코딩|디지털|프로그램/i.test(n)) return '💻';
-  if (/연구회|나눔|협의|멘토|동료/.test(n)) return '🤝';
+  if (!n) return '🌱';
+  for (const [re, icon] of GROWTH_ICON_RULES) if (re.test(n)) return icon;
   return '🌱';
+}
+
+/** 직접 고를 수 있는 아이콘 50개 (이력·성장 기록용) */
+const GROWTH_ICON_CHOICES = [
+  '📚', '📖', '📝', '✍️', '🧑‍🏫', '🎓', '🏫', '💻', '🤖', '🎬',
+  '🎧', '🎤', '🔬', '🧪', '🔢', '🌏', '🔤', '🎨', '🎵', '🏃',
+  '🧘', '💬', '🤝', '👥', '🧭', '🗂️', '📊', '📈', '🏆', '🥇',
+  '🎯', '💡', '🚀', '🌱', '🧠', '📷', '🛠️', '📅', '⏰', '📌',
+  '📎', '🏅', '📜', '🔖', '🙌', '❤️', '⭐', '🔥', '🧩', '🗣️',
+];
+
+/** 직접 고른 아이콘이 있으면 그것을, 없으면 이름으로 자동 선택 */
+function growthIconOf(it = {}) {
+  return it.icon || growthItemIcon(it.name);
+}
+
+/** 항목명 → 직접 고른 아이콘 (최근 기록 우선). 리포트처럼 이름만 아는 곳에서 사용 */
+function growthIconByName(name = '') {
+  const recs = state.records || [];
+  for (let i = recs.length - 1; i >= 0; i--) {
+    const items = recs[i]?.category === 'dailylog' && Array.isArray(recs[i].growthItems) ? recs[i].growthItems : [];
+    const hit = items.find((it) => it && it.icon && it.name === name);
+    if (hit) return hit.icon;
+  }
+  return growthItemIcon(name);
+}
+
+/* 아이콘 선택 팝오버 (모듈 전역 1개) */
+let iconPop = null;
+let iconPopBtn = null;
+let iconPopBound = false;
+
+function closeIconPicker() {
+  iconPop?.remove();
+  iconPop = null;
+  iconPopBtn = null;
+}
+
+function openIconPicker(btn) {
+  closeIconPicker();
+  if (!iconPopBound) {
+    iconPopBound = true;
+    document.addEventListener('click', (e) => {
+      if (iconPop && !iconPop.contains(e.target) && !e.target.closest('.hir-icon-btn')) closeIconPicker();
+    });
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && iconPop) { e.stopPropagation(); closeIconPicker(); }
+    }, true);
+    document.addEventListener('scroll', () => closeIconPicker(), true);
+    window.addEventListener('resize', closeIconPicker);
+  }
+  const current = btn.dataset.icon || '';
+  iconPopBtn = btn;
+  iconPop = document.createElement('div');
+  iconPop.className = 'icon-pop';
+  iconPop.setAttribute('role', 'dialog');
+  iconPop.setAttribute('aria-label', '아이콘 선택');
+  iconPop.innerHTML = `
+    <button type="button" class="icon-pop-auto ${current ? '' : 'on'}">✨ 자동 (제목에 맞게)</button>
+    <div class="icon-pop-grid">${GROWTH_ICON_CHOICES.map((ic) =>
+      `<button type="button" class="icon-pop-item ${ic === current ? 'on' : ''}" data-ic="${ic}" aria-label="${ic}">${ic}</button>`).join('')}</div>`;
+  iconPop.addEventListener('click', (e) => {
+    const auto = e.target.closest('.icon-pop-auto');
+    const item = e.target.closest('.icon-pop-item');
+    if (!auto && !item) return;
+    const b = iconPopBtn;
+    if (!b) return;
+    if (auto) {
+      b.dataset.icon = '';
+      const name = b.closest('.health-item-row')?.querySelector('.hir-name-input')?.value || '';
+      b.textContent = growthItemIcon(name);
+    } else {
+      b.dataset.icon = item.dataset.ic;
+      b.textContent = item.dataset.ic;
+    }
+    closeIconPicker();
+    b.focus();
+  });
+  document.body.appendChild(iconPop);
+  const r = btn.getBoundingClientRect();
+  const w = iconPop.offsetWidth;
+  const h = iconPop.offsetHeight;
+  const left = Math.max(8, Math.min(r.left, window.innerWidth - w - 8));
+  const top = r.bottom + 6 + h > window.innerHeight ? Math.max(8, r.top - h - 6) : r.bottom + 6;
+  iconPop.style.left = `${left}px`;
+  iconPop.style.top = `${top}px`;
 }
 
 function getGrowthPlaceholder(name = '') {
@@ -810,6 +918,10 @@ function getGrowthPlaceholder(name = '') {
   if (/자격|시험/.test(n)) return '예: 한국사능력검정 기출 1회분';
   if (/영어/.test(n)) return '예: 영어 회화 20분, 단어 30개';
   if (/글쓰기|블로그/.test(n)) return '예: 수업 성찰 일지 작성';
+  if (/영상|유튜브|강연|다큐/.test(n)) return '예: 수업 혁신 사례 강연 영상 시청';
+  if (/팟캐스트|오디오|듣기/.test(n)) return '예: 교육 팟캐스트 1편 청취';
+  if (/에듀테크|AI|코딩|디지털/i.test(n)) return '예: 생성형 AI 활용 수업 자료 만들기';
+  if (/연구회|나눔|토론|스터디/.test(n)) return '예: 교과 연구회 협의 참여';
   return '무엇을 했는지 적어 보세요';
 }
 
@@ -842,7 +954,7 @@ function growthRowHTML(it = {}) {
   return `
     <div class="health-item-row growth-item-row">
       <div class="hir-head">
-        <span class="hir-icon">${growthItemIcon(it.name)}</span>
+        <button type="button" class="hir-icon hir-icon-btn" data-icon="${esc(it.icon || '')}" title="아이콘 선택 (기본은 제목에 맞게 자동)" aria-label="아이콘 선택">${growthIconOf(it)}</button>
         <input type="text" class="input hir-name-input" value="${esc(it.name || '')}" placeholder="항목명 (예: 독서)" list="growth-name-suggestions">
       </div>
       <input type="text" class="input hir-val-input" value="${esc(it.value || '')}" placeholder="${esc(getGrowthPlaceholder(it.name))}">
@@ -902,7 +1014,7 @@ function recordCard(r) {
     ? `<div class="health-badges-grid growth-badges-grid">
         ${r.growthItems.filter((it) => it && it.name).map((it) => `
           <div class="health-badge-item">
-            <span class="hbi-tag">${growthItemIcon(it.name)} ${esc(it.name)}</span>
+            <span class="hbi-tag">${growthIconOf(it)} ${esc(it.name)}</span>
             <span class="hbi-desc">${esc(it.value || '')}</span>
             ${it.time ? `<span class="hbi-time">${esc(it.time)}</span>` : ''}
           </div>
@@ -1145,6 +1257,7 @@ function openModal({ cat = null, record = null, prefill = null } = {}) {
 }
 
 function closeModal() {
+  closeIconPicker();
   const m = $('#record-modal');
   m.classList.remove('open');
   m.setAttribute('aria-hidden', 'true');
@@ -1457,6 +1570,11 @@ function renderForm(data) {
       if (t) t.innerHTML = total ? `⏱ 오늘 총 노력 시간 <b>${fmtMinutes(total)}</b>` : '';
     };
     growthListEl.addEventListener('click', (e) => {
+      const iconBtn = e.target.closest('.hir-icon-btn');
+      if (iconBtn) {
+        if (iconPopBtn === iconBtn) closeIconPicker(); else openIconPicker(iconBtn);
+        return;
+      }
       const btn = e.target.closest('.btn-remove-hir');
       if (!btn) return;
       btn.closest('.health-item-row')?.remove();
@@ -1467,7 +1585,7 @@ function renderForm(data) {
       if (e.target.classList.contains('hir-name-input')) {
         const iconEl = row?.querySelector('.hir-icon');
         const valInput = row?.querySelector('.hir-val-input');
-        if (iconEl) iconEl.textContent = growthItemIcon(e.target.value);
+        if (iconEl && !iconEl.dataset.icon) iconEl.textContent = growthItemIcon(e.target.value);
         if (valInput && !valInput.value) valInput.placeholder = getGrowthPlaceholder(e.target.value);
       }
       if (e.target.classList.contains('hir-time-input')) updateTotal();
@@ -1501,11 +1619,13 @@ async function saveRecord(form) {
       if (listEl) {
         data.growthItems = [...listEl.querySelectorAll('.health-item-row')].map((row) => {
           const time = row.querySelector('.hir-time-input')?.value.trim() || '';
+          const icon = row.querySelector('.hir-icon-btn')?.dataset.icon || '';
           return {
             name: row.querySelector('.hir-name-input')?.value.trim() || '기타',
             value: row.querySelector('.hir-val-input')?.value.trim() || '',
             time,
             minutes: parseMinutes(time),
+            ...(icon ? { icon } : {}),
           };
         }).filter((it) => it.value || it.minutes);
         const total = data.growthItems.reduce((a, it) => a + it.minutes, 0);
