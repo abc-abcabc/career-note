@@ -24,6 +24,8 @@ const state = {
   filterYear: '',
   hospitalView: 'visits',
   growthView: 'dailylog',
+  reportUnit: 'week',
+  reportOffset: 0,
   filterTag: '',
   filterCat: '',
   trainingFilterCat: '',
@@ -458,7 +460,7 @@ function viewDashboard() {
     ${recent.length ? `<ul class="recent-list">${recent.map((r) => {
       const c = CATEGORY_MAP[r.category];
       if (!c) return '';
-      return `<li data-action="edit" data-id="${r.id}">${catPill(c)}<b>${esc(r.title)}</b><time>${esc(fmtPeriod(r))}</time></li>`;
+      return `<li data-action="edit" data-id="${r.id}">${catPill(c)}<b>${esc(recTitle(r))}</b><time>${esc(fmtPeriod(r))}</time></li>`;
     }).join('')}</ul>` : `<div class="empty-mini"><span>🌱</span>첫 이력을 기록해 보세요</div>`}
   </section>`;
 }
@@ -518,11 +520,183 @@ function categorySummary(c, scope) {
 
 const GROWTH_PAGE = { name: '성장 건강', icon: '🌿', color: '#10b981', desc: '실천과 배움, 운동 · 영양제 · 음주 등 건강 기록' };
 
+function growthToggle(active) {
+  const n = (id) => state.records.filter((r) => r.category === id).length;
+  return `<div class="view-toggle" role="tablist">
+      <button type="button" class="vt-btn ${active === 'dailylog' ? 'active' : ''}" data-action="growth-view" data-view="dailylog">🌱 성장일지 <span>${n('dailylog')}</span></button>
+      <button type="button" class="vt-btn ${active === 'health' ? 'active' : ''}" data-action="growth-view" data-view="health">💪 건강 <span>${n('health')}</span></button>
+      <button type="button" class="vt-btn ${active === 'report' ? 'active' : ''}" data-action="growth-view" data-view="report">📊 리포트</button>
+    </div>`;
+}
+
+/* ───────────────────────── 성장 건강 리포트 (주간 / 월간) ───────────────────────── */
+const pad2 = (n) => String(n).padStart(2, '0');
+const ymdOf = (d) => `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`;
+const DOW = ['월', '화', '수', '목', '금', '토', '일'];
+
+function reportRange(unit, offset) {
+  const now = new Date(); now.setHours(0, 0, 0, 0);
+  let start; let end; let label;
+  if (unit === 'week') {
+    start = new Date(now); start.setDate(now.getDate() - ((now.getDay() + 6) % 7) + offset * 7);
+    end = new Date(start); end.setDate(start.getDate() + 6);
+    label = `${start.getFullYear()}년 ${start.getMonth() + 1}월 ${start.getDate()}일 ~ ${end.getMonth() + 1}월 ${end.getDate()}일`;
+  } else {
+    start = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+    end = new Date(start.getFullYear(), start.getMonth() + 1, 0);
+    label = `${start.getFullYear()}년 ${start.getMonth() + 1}월`;
+  }
+  return { start: ymdOf(start), end: ymdOf(end), startD: start, endD: end, label };
+}
+
+const isDryValue = (v = '') => /금주|무음주|안\s*마|없|0\s*(잔|병|캔)?$/.test(String(v));
+const isDrinkName = (n = '') => /음주|술|맥주|소주|와인|금주/.test(n);
+
+function reportStats(start, end) {
+  const inRange = (r) => r.date && r.date >= start && r.date <= end;
+  const g = state.records.filter((r) => r.category === 'dailylog' && inRange(r));
+  const h = state.records.filter((r) => r.category === 'health' && inRange(r));
+  const byItem = new Map();
+  const byDay = new Map();
+  let total = 0;
+  g.forEach((r) => growthMinutesOf(r).forEach((v, k) => {
+    byItem.set(k, (byItem.get(k) || 0) + v);
+    byDay.set(r.date, (byDay.get(r.date) || 0) + v);
+    total += v;
+  }));
+  const healthDays = new Map(); // 항목명 → 기록한 날짜 Set
+  const drink = { drink: new Set(), dry: new Set() };
+  h.forEach((r) => (Array.isArray(r.healthItems) ? r.healthItems : []).forEach((it) => {
+    if (!it?.name || !it.value) return;
+    if (isDrinkName(it.name)) {
+      (isDryValue(it.value) ? drink.dry : drink.drink).add(r.date);
+      return;
+    }
+    if (!healthDays.has(it.name)) healthDays.set(it.name, new Set());
+    healthDays.get(it.name).add(r.date);
+  }));
+  return {
+    g, h, total, byItem, byDay, healthDays, drink,
+    gDays: new Set(g.map((r) => r.date)),
+    hDays: new Set(h.map((r) => r.date)),
+  };
+}
+
+function viewGrowthReport() {
+  const unit = state.reportUnit;
+  const off = Math.min(0, state.reportOffset);
+  const range = reportRange(unit, off);
+  const prev = reportRange(unit, off - 1);
+  const s = reportStats(range.start, range.end);
+  const p = reportStats(prev.start, prev.end);
+  const today = todayStr();
+  const lastDay = range.end < today ? range.end : today;
+  const elapsed = Math.max(1, Math.round((new Date(lastDay) - new Date(range.start)) / 86400000) + 1);
+  const unitName = unit === 'week' ? '지난주' : '지난달';
+
+  const delta = s.total - p.total;
+  const deltaHTML = p.total || s.total
+    ? `<small class="rp-delta ${delta > 0 ? 'up' : delta < 0 ? 'down' : ''}">${unitName} 대비 ${delta === 0 ? '변화 없음' : `${delta > 0 ? '▲' : '▼'} ${fmtMinutes(Math.abs(delta))}`}</small>`
+    : '';
+  const avg = s.gDays.size ? Math.round(s.total / s.gDays.size) : 0;
+
+  const items = [...s.byItem.entries()].sort((a, b) => b[1] - a[1]);
+  const maxItem = items[0]?.[1] || 1;
+  const itemBars = items.length
+    ? items.map(([name, m]) => `
+      <div class="rp-row"><span class="rp-name">${growthItemIcon(name)} ${esc(name)}</span>
+        <div class="rp-bar"><i style="width:${Math.max(4, (m / maxItem) * 100)}%"></i></div>
+        <span class="rp-val">${fmtMinutes(m)} <em>${s.total ? Math.round((m / s.total) * 100) : 0}%</em></span></div>`).join('')
+    : '<p class="rp-empty">이 기간에 시간이 기록된 성장 항목이 없어요.</p>';
+
+  // 주간: 요일별 막대 / 월간: 주차별 표
+  let trendHTML = '';
+  if (unit === 'week') {
+    const days = [...Array(7)].map((_, i) => {
+      const d = new Date(range.startD); d.setDate(d.getDate() + i);
+      const key = ymdOf(d);
+      return { key, label: DOW[i], m: s.byDay.get(key) || 0, health: s.hDays.has(key), future: key > today };
+    });
+    const maxDay = Math.max(1, ...days.map((d) => d.m));
+    trendHTML = `<div class="rp-days">${days.map((d) => `
+      <div class="rp-day ${d.future ? 'future' : ''}">
+        <span class="rp-day-val">${d.m ? fmtMinutes(d.m) : ''}</span>
+        <div class="rp-day-bar"><i style="height:${d.m ? Math.max(6, (d.m / maxDay) * 100) : 0}%"></i></div>
+        <b>${d.label}</b><span class="rp-day-h">${d.health ? '💪' : ''}</span>
+      </div>`).join('')}</div>`;
+  } else {
+    const rows = [];
+    const cur = new Date(range.startD);
+    cur.setDate(cur.getDate() - ((cur.getDay() + 6) % 7));
+    while (cur <= range.endD) {
+      const ws = new Date(cur); const we = new Date(cur); we.setDate(we.getDate() + 6);
+      const a = ymdOf(ws) < range.start ? range.start : ymdOf(ws);
+      const b = ymdOf(we) > range.end ? range.end : ymdOf(we);
+      const ws2 = reportStats(a, b);
+      rows.push(`<tr><td>${Number(a.slice(5, 7))}/${Number(a.slice(8))} ~ ${Number(b.slice(5, 7))}/${Number(b.slice(8))}</td>
+        <td><b>${ws2.total ? fmtMinutes(ws2.total) : '-'}</b></td><td>${ws2.gDays.size}일</td><td>${ws2.hDays.size}일</td></tr>`);
+      cur.setDate(cur.getDate() + 7);
+    }
+    trendHTML = `<table class="rp-table"><thead><tr><th>주차</th><th>노력 시간</th><th>성장 기록</th><th>건강 기록</th></tr></thead><tbody>${rows.join('')}</tbody></table>`;
+  }
+
+  const hRows = [...s.healthDays.entries()].sort((a, b) => b[1].size - a[1].size).map(([name, set]) => `
+    <div class="rp-row"><span class="rp-name">${healthItemIcon(name)} ${esc(name)}</span>
+      <div class="rp-bar health"><i style="width:${Math.max(4, (set.size / elapsed) * 100)}%"></i></div>
+      <span class="rp-val">${set.size}일 <em>${Math.round((set.size / elapsed) * 100)}%</em></span></div>`);
+  if (s.drink.drink.size || s.drink.dry.size) {
+    hRows.push(`<div class="rp-row"><span class="rp-name">🍺 음주</span>
+      <div class="rp-bar health warn"><i style="width:${Math.max(4, (s.drink.drink.size / elapsed) * 100)}%"></i></div>
+      <span class="rp-val">${s.drink.drink.size}일 음주 · ${s.drink.dry.size}일 금주</span></div>`);
+  }
+  const healthHTML = hRows.length ? hRows.join('') : '<p class="rp-empty">이 기간에 건강 항목 기록이 없어요.</p>';
+
+  const highlights = [...s.g].filter((r) => r.title || r.desc).sort((a, b) => b.date.localeCompare(a.date)).slice(0, 6);
+  const hlHTML = highlights.length
+    ? `<ul class="rp-hl">${highlights.map((r) => `<li data-action="edit" data-id="${r.id}"><time>${esc(fmtDate(r.date))}</time><div><b>${esc(recTitle(r))}</b>${r.desc ? `<p>${esc(r.desc)}</p>` : ''}</div></li>`).join('')}</ul>`
+    : '';
+
+  const empty = !s.g.length && !s.h.length;
+  return `
+  <header class="page-head" style="--c:${GROWTH_PAGE.color}">
+    <div class="ph-icon">${GROWTH_PAGE.icon}</div>
+    <div class="ph-text"><h1>${GROWTH_PAGE.name}</h1><p>${GROWTH_PAGE.desc}</p></div>
+  </header>
+  <div class="rp-controls">
+    ${growthToggle('report')}
+    <div class="view-toggle">
+      <button type="button" class="vt-btn ${unit === 'week' ? 'active' : ''}" data-action="report-unit" data-unit="week">주간</button>
+      <button type="button" class="vt-btn ${unit === 'month' ? 'active' : ''}" data-action="report-unit" data-unit="month">월간</button>
+    </div>
+    <div class="rp-nav">
+      <button type="button" class="icon-btn sm" data-action="report-nav" data-dir="-1" aria-label="이전">‹</button>
+      <b>${range.label}</b>
+      <button type="button" class="icon-btn sm" data-action="report-nav" data-dir="1" aria-label="다음" ${off >= 0 ? 'disabled' : ''}>›</button>
+      ${off < 0 ? `<button type="button" class="btn btn-ghost sm" data-action="report-nav" data-dir="0">${unit === 'week' ? '이번 주' : '이번 달'}</button>` : ''}
+    </div>
+  </div>
+  <div class="rp-summary">
+    <div class="rp-card"><span>총 노력 시간</span><b>${s.total ? fmtMinutes(s.total) : '0분'}</b>${deltaHTML}</div>
+    <div class="rp-card"><span>하루 평균</span><b>${avg ? fmtMinutes(avg) : '-'}</b><small>기록한 날 기준</small></div>
+    <div class="rp-card"><span>🌱 성장 기록일</span><b>${s.gDays.size}일</b><small>${s.g.length}건</small></div>
+    <div class="rp-card"><span>💪 건강 기록일</span><b>${s.hDays.size}일</b><small>${s.h.length}건</small></div>
+  </div>
+  ${empty ? `<div class="empty"><div class="empty-icon">📊</div><h3>이 기간에는 기록이 없어요</h3><p>성장일지나 건강 기록을 추가하면 리포트가 자동으로 만들어져요.</p></div>` : `
+  <div class="rp-grid">
+    <section class="card rp-sec"><h2>🌱 성장 — 항목별 시간</h2>${itemBars}</section>
+    <section class="card rp-sec"><h2>${unit === 'week' ? '📅 요일별 노력 시간' : '🗓 주차별 요약'}</h2>${trendHTML}</section>
+    <section class="card rp-sec"><h2>💪 건강 — 항목별 실천일</h2>${healthHTML}</section>
+    ${hlHTML ? `<section class="card rp-sec"><h2>✨ 이 기간의 기록</h2>${hlHTML}</section>` : ''}
+  </div>`}`;
+}
+
 function viewCategory(pageCat) {
   const isHospital = pageCat === 'hospital';
   const isGrowth = pageCat === 'dailylog';
+  const growthView = isGrowth ? state.growthView : '';
+  if (isGrowth && growthView === 'report') return viewGrowthReport();
   const catId = isHospital && state.hospitalView === 'reservations' ? 'reservation'
-    : isGrowth && state.growthView === 'health' ? 'health'
+    : isGrowth && growthView === 'health' ? 'health'
     : pageCat;
   const c = CATEGORY_MAP[catId];
   const hc = isGrowth ? GROWTH_PAGE : CATEGORY_MAP[pageCat];
@@ -533,11 +707,7 @@ function viewCategory(pageCat) {
         <button type="button" class="vt-btn ${catId === 'hospital' ? 'active' : ''}" data-action="hospital-view" data-view="visits">방문 기록 <span>${countOf('hospital')}</span></button>
         <button type="button" class="vt-btn ${catId === 'reservation' ? 'active' : ''}" data-action="hospital-view" data-view="reservations">예약 <span>${countOf('reservation')}</span></button>
       </div>`
-    : isGrowth
-    ? `<div class="view-toggle" role="tablist">
-        <button type="button" class="vt-btn ${catId === 'dailylog' ? 'active' : ''}" data-action="growth-view" data-view="dailylog">🌱 성장일지 <span>${countOf('dailylog')}</span></button>
-        <button type="button" class="vt-btn ${catId === 'health' ? 'active' : ''}" data-action="growth-view" data-view="health">💪 건강 <span>${countOf('health')}</span></button>
-      </div>`
+    : isGrowth ? growthToggle(catId)
     : '';
   const isTraining = catId === 'training';
   const scope = isTraining && state.trainingFilterCat
@@ -615,6 +785,99 @@ function getHealthPlaceholder(name = '') {
   return '내용을 입력하세요';
 }
 
+/* ───────────────────────── 성장 항목 ───────────────────────── */
+const GROWTH_DEFAULT_ITEMS = ['독서', '수업 연구', '연수·강의'];
+const GROWTH_SUGGESTIONS = ['독서', '수업 연구', '연수·강의', '자격증 공부', '영어', '글쓰기', '에듀테크', '연구회·나눔', '자기계발'];
+
+function growthItemIcon(name = '') {
+  const n = String(name).trim();
+  if (/독서|책|칼럼|논문/.test(n)) return '📚';
+  if (/수업|교재|교육과정|평가/.test(n)) return '🧑‍🏫';
+  if (/연수|강의|수강|세미나/.test(n)) return '🎓';
+  if (/자격|시험|공부|학습/.test(n)) return '📝';
+  if (/영어|외국어|회화/.test(n)) return '🔤';
+  if (/글쓰기|블로그|집필|기록/.test(n)) return '✍️';
+  if (/에듀테크|AI|코딩|디지털|프로그램/i.test(n)) return '💻';
+  if (/연구회|나눔|협의|멘토|동료/.test(n)) return '🤝';
+  return '🌱';
+}
+
+function getGrowthPlaceholder(name = '') {
+  const n = String(name).trim();
+  if (/독서|책/.test(n)) return '예: 교육 칼럼 2편, 「수업 설계」 3장';
+  if (/수업/.test(n)) return '예: 사회과 프로젝트 수업안 1차시 구상';
+  if (/연수|강의/.test(n)) return '예: AI 디지털교과서 직무연수 3강';
+  if (/자격|시험/.test(n)) return '예: 한국사능력검정 기출 1회분';
+  if (/영어/.test(n)) return '예: 영어 회화 20분, 단어 30개';
+  if (/글쓰기|블로그/.test(n)) return '예: 수업 성찰 일지 작성';
+  return '무엇을 했는지 적어 보세요';
+}
+
+/** "1시간 30분", "90분", "1.5시간", "2h 10m", "45" → 분 단위 숫자 */
+function parseMinutes(str = '') {
+  const s = String(str || '').trim().toLowerCase();
+  if (!s) return 0;
+  let total = 0;
+  let matched = false;
+  const h = s.match(/(\d+(?:\.\d+)?)\s*(?:시간|시|hours?|hrs?|h)/);
+  if (h) { total += parseFloat(h[1]) * 60; matched = true; }
+  const m = s.match(/(\d+(?:\.\d+)?)\s*(?:분|minutes?|mins?|m)(?!\w)/);
+  if (m) { total += parseFloat(m[1]); matched = true; }
+  if (!matched) {
+    const n = s.match(/^\d+(?:\.\d+)?$/);
+    if (n) total = parseFloat(n[0]);
+  }
+  return Math.round(total);
+}
+
+function fmtMinutes(min) {
+  const t = Math.round(Number(min) || 0);
+  if (!t) return '0분';
+  const h = Math.floor(t / 60);
+  const m = t % 60;
+  return [h ? `${h}시간` : '', m ? `${m}분` : ''].filter(Boolean).join(' ');
+}
+
+function growthRowHTML(it = {}) {
+  return `
+    <div class="health-item-row growth-item-row">
+      <div class="hir-head">
+        <span class="hir-icon">${growthItemIcon(it.name)}</span>
+        <input type="text" class="input hir-name-input" value="${esc(it.name || '')}" placeholder="항목명 (예: 독서)" list="growth-name-suggestions">
+      </div>
+      <input type="text" class="input hir-val-input" value="${esc(it.value || '')}" placeholder="${esc(getGrowthPlaceholder(it.name))}">
+      <input type="text" class="input hir-time-input" value="${esc(it.time || '')}" placeholder="시간 (30분)" inputmode="text" aria-label="소요 시간">
+      <button type="button" class="btn-remove-hir" title="이 항목 삭제" aria-label="이 항목 삭제">✕</button>
+    </div>`;
+}
+
+/** 성장일지 한 건의 항목별 분 단위 집계 — 구버전(항목 없음)은 '기타'로 합산 */
+function growthMinutesOf(r) {
+  const items = Array.isArray(r.growthItems) ? r.growthItems : [];
+  const out = new Map();
+  let attributed = 0;
+  items.forEach((it) => {
+    const mins = Number(it.minutes) || parseMinutes(it.time);
+    if (!mins) return;
+    out.set(it.name || '기타', (out.get(it.name || '기타') || 0) + mins);
+    attributed += mins;
+  });
+  if (!attributed) {
+    const legacy = parseMinutes(r.effortTime);
+    if (legacy) out.set('기타', legacy);
+  }
+  return out;
+}
+
+/** 제목이 비어 있는 기록(성장/건강 항목 전용)의 표시용 이름 */
+function recTitle(r) {
+  if (r.title) return r.title;
+  const items = r.growthItems || r.healthItems;
+  const first = Array.isArray(items) ? items.find((it) => it && (it.value || it.name)) : null;
+  if (first) return `${first.name}${first.value ? `: ${first.value}` : ''}${items.length > 1 ? ` 외 ${items.length - 1}건` : ''}`;
+  return CATEGORY_MAP[r.category]?.name || '기록';
+}
+
 function recordCard(r) {
   const c = CATEGORY_MAP[r.category];
   if (!c) return '';
@@ -630,6 +893,18 @@ function recordCard(r) {
           <div class="health-badge-item">
             <span class="hbi-tag">${healthItemIcon(it.name)} ${esc(it.name)}</span>
             <span class="hbi-desc">${esc(it.value)}</span>
+          </div>
+        `).join('')}
+       </div>`
+    : '';
+
+  const growthBadges = r.category === 'dailylog' && Array.isArray(r.growthItems) && r.growthItems.length
+    ? `<div class="health-badges-grid growth-badges-grid">
+        ${r.growthItems.filter((it) => it && it.name).map((it) => `
+          <div class="health-badge-item">
+            <span class="hbi-tag">${growthItemIcon(it.name)} ${esc(it.name)}</span>
+            <span class="hbi-desc">${esc(it.value || '')}</span>
+            ${it.time ? `<span class="hbi-time">${esc(it.time)}</span>` : ''}
           </div>
         `).join('')}
        </div>`
@@ -659,6 +934,7 @@ function recordCard(r) {
     </div>
     ${showTitle ? `<h3 class="rc-title">${esc(r.title)}</h3>` : ''}
     ${healthBadges}
+    ${growthBadges}
     ${r.org ? `<p class="rc-org">${esc(r.org)}</p>` : ''}
     ${detail ? `<div class="rc-chips">${detail}</div>` : ''}
     ${r.desc ? `<p class="rc-desc">${esc(r.desc)}</p>` : ''}
@@ -712,7 +988,7 @@ function viewTimeline() {
           <span class="tl-dot"></span>
           <div class="tl-card" data-action="edit" data-id="${r.id}" tabindex="0">
             <div class="tl-meta">${catPill(c)}<time>${esc(fmtPeriod(r))}</time>${expiryBadge(r)}</div>
-            <h3>${esc(r.title)}</h3>
+            <h3>${esc(recTitle(r))}</h3>
             <p>${[r.org, det].filter(Boolean).map(esc).join(' · ')}</p>
           </div></li>`;
       }).join('')}</ol>
@@ -1005,6 +1281,23 @@ function fieldHTML(f, val) {
         </div>`;
       break;
     }
+    case 'growth-items': {
+      const items = Array.isArray(val) && val.length ? val : GROWTH_DEFAULT_ITEMS.map((name) => ({ name, value: '', time: '' }));
+      control = `
+        <div class="health-items-builder" id="growth-items-builder">
+          <datalist id="growth-name-suggestions">
+            ${GROWTH_SUGGESTIONS.map((s) => `<option value="${esc(s)}">`).join('')}
+          </datalist>
+          <div class="health-items-list growth-items-list" id="growth-items-list">
+            ${items.map((it) => growthRowHTML(it)).join('')}
+          </div>
+          <div class="growth-total" id="growth-total"></div>
+          <button type="button" class="btn btn-ghost sm add-health-item-btn" id="btn-add-growth-item">
+            ＋ 새 항목 추가 (예: 글쓰기, 영어 등)
+          </button>
+        </div>`;
+      break;
+    }
     case 'tags':
       control = `<input class="input" id="${id}" name="${f.key}" type="text" placeholder="${esc(f.placeholder || '')}" value="${esc((val || []).join(', '))}">`;
       break;
@@ -1032,7 +1325,7 @@ function renderForm(data) {
   $('#modal-title').textContent = `${c.name} ${editing ? '수정' : '추가'}`;
   $('#modal-body').innerHTML = `
     <form id="record-form" data-cat="${c.id}" autocomplete="off">
-      <div class="form-grid">${fieldsOf(c).map((f) => fieldHTML(f, formData?.[f.key])).join('')}</div>
+      <div class="form-grid">${fieldsOf(c).filter((f) => !f.hidden).map((f) => fieldHTML(f, formData?.[f.key])).join('')}</div>
       <footer class="modal-foot">
         ${editing ? '<button type="button" class="btn btn-danger-ghost" data-action="delete-current">삭제</button>' : ''}
         ${state.modal.fromPicker ? '<button type="button" class="btn btn-ghost" data-action="back-picker">← 다른 항목</button>' : ''}
@@ -1154,6 +1447,38 @@ function renderForm(data) {
     });
   }
 
+  // 성장 항목 동적 추가/삭제/아이콘·총 시간 연동
+  const growthListEl = $('#growth-items-list', $('#modal-body'));
+  const addGrowthBtn = $('#btn-add-growth-item', $('#modal-body'));
+  if (growthListEl && addGrowthBtn) {
+    const updateTotal = () => {
+      const total = [...growthListEl.querySelectorAll('.hir-time-input')].reduce((a, el) => a + parseMinutes(el.value), 0);
+      const t = $('#growth-total', $('#modal-body'));
+      if (t) t.innerHTML = total ? `⏱ 오늘 총 노력 시간 <b>${fmtMinutes(total)}</b>` : '';
+    };
+    growthListEl.addEventListener('click', (e) => {
+      const btn = e.target.closest('.btn-remove-hir');
+      if (!btn) return;
+      btn.closest('.health-item-row')?.remove();
+      updateTotal();
+    });
+    growthListEl.addEventListener('input', (e) => {
+      const row = e.target.closest('.health-item-row');
+      if (e.target.classList.contains('hir-name-input')) {
+        const iconEl = row?.querySelector('.hir-icon');
+        const valInput = row?.querySelector('.hir-val-input');
+        if (iconEl) iconEl.textContent = growthItemIcon(e.target.value);
+        if (valInput && !valInput.value) valInput.placeholder = getGrowthPlaceholder(e.target.value);
+      }
+      if (e.target.classList.contains('hir-time-input')) updateTotal();
+    });
+    addGrowthBtn.addEventListener('click', () => {
+      growthListEl.insertAdjacentHTML('beforeend', growthRowHTML({ name: '', value: '', time: '' }));
+      growthListEl.lastElementChild.querySelector('.hir-name-input')?.focus();
+    });
+    updateTotal();
+  }
+
   syncOngoing();
   setTimeout(() => $('#fld-title')?.focus(), 60);
 }
@@ -1170,7 +1495,25 @@ function syncOngoing() {
 async function saveRecord(form) {
   const c = CATEGORY_MAP[form.dataset.cat];
   const data = { category: c.id };
-  for (const f of fieldsOf(c)) {
+  for (const f of fieldsOf(c).filter((x) => !x.hidden)) {
+    if (f.type === 'growth-items') {
+      const listEl = form.querySelector('#growth-items-list');
+      if (listEl) {
+        data.growthItems = [...listEl.querySelectorAll('.health-item-row')].map((row) => {
+          const time = row.querySelector('.hir-time-input')?.value.trim() || '';
+          return {
+            name: row.querySelector('.hir-name-input')?.value.trim() || '기타',
+            value: row.querySelector('.hir-val-input')?.value.trim() || '',
+            time,
+            minutes: parseMinutes(time),
+          };
+        }).filter((it) => it.value || it.minutes);
+        const total = data.growthItems.reduce((a, it) => a + it.minutes, 0);
+        // 항목별 시간이 없으면 기존(구버전) 총 노력 시간 값을 보존
+        data.effortTime = total ? fmtMinutes(total) : (state.modal.record?.effortTime || '');
+      }
+      continue;
+    }
     if (f.type === 'training-cat') {
       const checked = form.querySelector(`input[name="${f.key}"]:checked`);
       data[f.key] = checked ? checked.value.trim() : (getTrainingCategories()[0] || '학교 관련');
@@ -1204,6 +1547,10 @@ async function saveRecord(form) {
     else data[f.key] = el.value.trim();
   }
   if (data.ongoing) data.endDate = '';
+  if (c.id === 'dailylog' && !data.title && !data.growthItems?.length && !data.desc) {
+    toast('성장 항목의 내용이나 시간을 하나 이상 입력해 주세요.', 'error');
+    return;
+  }
   if (data.startDate && data.endDate && data.endDate < data.startDate) {
     toast('종료일이 시작일보다 빠를 수 없어요.', 'error');
     $('#fld-endDate')?.focus();
@@ -1227,7 +1574,7 @@ async function saveRecord(form) {
 async function deleteRecord(id) {
   const r = state.records.find((x) => x.id === id);
   if (!r) return;
-  const ok = await confirmDialog('이력을 삭제할까요?', `“${r.title}” 기록이 영구적으로 삭제됩니다.`);
+  const ok = await confirmDialog('이력을 삭제할까요?', `“${recTitle(r)}” 기록이 영구적으로 삭제됩니다.`);
   if (!ok) return;
   try {
     await store.remove(id);
@@ -1258,7 +1605,11 @@ function confirmDialog(title, msg, okText = '삭제') {
 function csvCell(f, v) {
   if (v == null || v === false) return '';
   if (v === true) return 'Y';
-  if (Array.isArray(v)) return v.join(', ');
+  if (Array.isArray(v)) {
+    return v.map((x) => (x && typeof x === 'object'
+      ? `${x.name || ''}${x.value ? `: ${x.value}` : ''}${x.time ? ` (${x.time})` : ''}`
+      : x)).join(' / ');
+  }
   return v;
 }
 
@@ -1277,7 +1628,7 @@ function exportCSV(catId) {
     ['구분', '제목', '기관', '일자/기간', '상세', '태그', '메모'],
     ...list.map((r) => {
       const c = CATEGORY_MAP[r.category];
-      return [c?.name, r.title, r.org, fmtPeriod(r), c ? detailText(r, c) : '', (r.tags || []).join(', '), r.memo];
+      return [c?.name, recTitle(r), r.org, fmtPeriod(r), c ? detailText(r, c) : '', (r.tags || []).join(', '), r.memo];
     }),
   ];
   download(`${fname}_전체_${todayStr()}.csv`, toCSV(rows), 'text/csv;charset=utf-8');
@@ -1293,7 +1644,7 @@ function exportJSON() {
 async function importJSON(file) {
   try {
     const json = JSON.parse(await file.text());
-    const list = (Array.isArray(json) ? json : json.records || []).filter((r) => r && CATEGORY_MAP[r.category] && r.title);
+    const list = (Array.isArray(json) ? json : json.records || []).filter((r) => r && CATEGORY_MAP[r.category] && (r.title || r.healthItems || r.growthItems));
     if (!list.length) return toast('불러올 수 있는 이력이 없어요.', 'error');
     const ok = await confirmDialog('백업을 불러올까요?', `${list.length}건의 이력이 기존 데이터에 추가됩니다.`, '불러오기');
     if (!ok) return;
@@ -1543,7 +1894,14 @@ function bindEvents() {
       case 'pick-cat': state.modal.cat = cat; renderForm(null); break;
       case 'back-picker': state.modal.cat = null; renderPicker(); break;
       case 'close-modal': closeModal(); break;
-      case 'growth-view': state.growthView = t.dataset.view === 'health' ? 'health' : 'dailylog'; render(); break;
+      case 'growth-view': state.growthView = ['health', 'report'].includes(t.dataset.view) ? t.dataset.view : 'dailylog'; render(); break;
+      case 'report-unit': state.reportUnit = t.dataset.unit === 'month' ? 'month' : 'week'; state.reportOffset = 0; render(); break;
+      case 'report-nav': {
+        const dir = Number(t.dataset.dir);
+        state.reportOffset = dir === 0 ? 0 : Math.min(0, state.reportOffset + dir);
+        render();
+        break;
+      }
       case 'hospital-view': state.hospitalView = t.dataset.view === 'reservations' ? 'reservations' : 'visits'; render(); break;
       case 'training-subcat': state.trainingFilterCat = subcat || ''; render(); break;
       case 'manage-training-cats': openTrainingCatModal(); break;
