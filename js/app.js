@@ -967,7 +967,7 @@ function growthRowHTML(it = {}) {
         <button type="button" class="hir-icon hir-icon-btn" data-icon="${esc(it.icon || '')}" title="아이콘 선택 (기본은 제목에 맞게 자동)" aria-label="아이콘 선택">${growthIconOf(it)}</button>
         <input type="text" class="input hir-name-input" value="${esc(it.name || '')}" placeholder="항목명 (예: 독서)" list="growth-name-suggestions">
       </div>
-      <input type="text" class="input hir-val-input" value="${esc(it.value || '')}" placeholder="${esc(getGrowthPlaceholder(it.name))}">
+      <textarea class="input hir-val-input" rows="1" placeholder="${esc(getGrowthPlaceholder(it.name))}">${esc(it.value || '')}</textarea>
       <input type="text" class="input hir-time-input" value="${esc(it.time || '')}" placeholder="시간 (30분)" inputmode="text" aria-label="소요 시간">
       <button type="button" class="btn-remove-hir" title="이 항목 삭제" aria-label="이 항목 삭제">✕</button>
     </div>`;
@@ -1258,15 +1258,31 @@ function viewSettings() {
 /* ───────────────────────── 모달 (추가/수정) ───────────────────────── */
 function openModal({ cat = null, record = null, prefill = null } = {}) {
   state.modal = { cat: cat || record?.category || null, record, fromPicker: !cat && !record };
+  state.modalDirty = false;
   if (state.modal.cat) renderForm(record || prefill);
   else renderPicker();
   const m = $('#record-modal');
   m.classList.add('open');
   m.setAttribute('aria-hidden', 'false');
   document.body.classList.add('modal-open');
+  growHirInputs($('#modal-body')); // 모달이 보인 뒤에야 높이를 잴 수 있음
+}
+
+let overlayDownTarget = null;
+
+let hirGrowBound = false;
+function autoGrow(el) {
+  el.style.height = 'auto';
+  el.style.height = `${el.scrollHeight + 2}px`;
+}
+function growHirInputs(scope) {
+  scope?.querySelectorAll('.hir-val-input').forEach((el) => {
+    if (el.tagName === 'TEXTAREA') autoGrow(el);
+  });
 }
 
 function closeModal() {
+  state.modalDirty = false;
   closeIconPicker();
   const m = $('#record-modal');
   m.classList.remove('open');
@@ -1393,7 +1409,7 @@ function fieldHTML(f, val) {
                   <span class="hir-icon">${healthItemIcon(it.name)}</span>
                   <input type="text" class="input hir-name-input" value="${esc(it.name)}" placeholder="항목명" list="health-name-suggestions">
                 </div>
-                <input type="text" class="input hir-val-input" value="${esc(it.value || '')}" placeholder="${esc(getHealthPlaceholder(it.name))}">
+                <textarea class="input hir-val-input" rows="1" placeholder="${esc(getHealthPlaceholder(it.name))}">${esc(it.value || '')}</textarea>
                 <button type="button" class="btn-remove-hir" title="이 항목 삭제" aria-label="이 항목 삭제">✕</button>
               </div>
             `).join('')}
@@ -1567,7 +1583,7 @@ function renderForm(data) {
           <span class="hir-icon">✨</span>
           <input type="text" class="input hir-name-input" value="" placeholder="항목명 (예: 수면)" list="health-name-suggestions">
         </div>
-        <input type="text" class="input hir-val-input" value="" placeholder="내용을 입력하세요">
+        <textarea class="input hir-val-input" rows="1" placeholder="내용을 입력하세요"></textarea>
         <button type="button" class="btn-remove-hir" title="이 항목 삭제" aria-label="이 항목 삭제">✕</button>
       `;
       healthListEl.appendChild(newRow);
@@ -1636,6 +1652,15 @@ function renderForm(data) {
       }
     });
     updateTotal();
+  }
+
+  // 항목 설명 입력칸: 줄바꿈 가능, 내용 길이에 맞춰 높이 자동 조절
+  growHirInputs($('#modal-body'));
+  if (!hirGrowBound) {
+    hirGrowBound = true;
+    document.addEventListener('input', (e) => {
+      if (e.target.classList?.contains('hir-val-input')) autoGrow(e.target);
+    });
   }
 
   syncOngoing();
@@ -2026,7 +2051,7 @@ function bindEvents() {
     if (e.key === 'Escape') {
       if ($('#confirm-modal').classList.contains('open')) $('#confirm-cancel').click();
       else if ($('#training-cat-modal').classList.contains('open')) closeTrainingCatModal();
-      else if ($('#record-modal').classList.contains('open')) closeModal();
+      // 작성 창(record-modal)은 Esc로 닫지 않음 — ✕·취소 버튼으로만 닫힘
       document.body.classList.remove('nav-open');
     }
     // 백스페이스: 입력칸이 아닌 곳에서는 브라우저 기본 동작(뒤로가기 등)을 막아 창이 꺼지지 않게 함
@@ -2043,10 +2068,24 @@ function bindEvents() {
     if (e.key === 'Enter' && document.activeElement?.matches('.record-card, .tl-card')) document.activeElement.click();
   });
 
+  // 모달 보호: 입력칸에서 드래그하다 바깥에서 마우스를 놓아도 닫히지 않게, 누른 곳도 바깥일 때만 닫음
+  document.addEventListener('pointerdown', (e) => { overlayDownTarget = e.target; }, true);
+  document.addEventListener('input', (e) => {
+    if (e.target.closest?.('#record-modal')) state.modalDirty = true;
+  });
+  // 작성 중에 탭을 닫거나 새로고침·뒤로가기 하면 확인
+  window.addEventListener('beforeunload', (e) => {
+    if (state.modalDirty && $('#record-modal').classList.contains('open')) {
+      e.preventDefault();
+      e.returnValue = '';
+    }
+  });
+
   document.addEventListener('click', (e) => {
     if (e.target.closest('[data-stop]')) return;
     if (e.target.classList.contains('modal-overlay')) {
-      if (e.target.id === 'record-modal') closeModal();
+      if (overlayDownTarget !== e.target) return;
+      if (e.target.id === 'record-modal') { /* 작성 창은 바깥을 눌러도 닫지 않음 */ }
       else if (e.target.id === 'training-cat-modal') closeTrainingCatModal();
       else $('#confirm-cancel').click();
       return;

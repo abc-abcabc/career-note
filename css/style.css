@@ -615,7 +615,7 @@ body.is-demo .demo-badge { display: inline-block; }
 [data-theme="light"] .health-badge-item { background: #f0fdfa; border-color: #ccfbf1; }
 .hbi-tag { font-weight: 700; color: #06b6d4; white-space: nowrap; font-size: 13px; display: inline-flex; align-items: center; gap: 4px; }
 [data-theme="light"] .hbi-tag { color: #0d9488; }
-.hbi-desc { color: var(--text); font-weight: 500; word-break: break-word; flex: 1; }
+.hbi-desc { color: var(--text); font-weight: 500; word-break: break-word; flex: 1; white-space: pre-line; }
 [data-theme="light"] .hbi-desc { color: #0f172a; }
 
 /* 건강 모달 항목 빌더 */
@@ -639,7 +639,7 @@ button.hir-icon-btn:hover, button.hir-icon-btn:focus-visible { border-color: var
 .icon-pop-item:hover { background: var(--surface-3); }
 .icon-pop-item.on { border-color: var(--accent); background: var(--surface-2); }
 .hir-name-input { height: 38px !important; font-size: 13.5px !important; font-weight: 700 !important; padding: 0 10px !important; }
-.hir-val-input { height: 38px !important; font-size: 13.5px !important; padding: 0 12px !important; }
+.hir-val-input { min-height: 38px; height: auto !important; font-size: 13.5px !important; line-height: 1.5; padding: 8px 12px !important; resize: none; overflow: hidden; font-family: inherit; }
 .btn-remove-hir { width: 34px; height: 34px; border-radius: 8px; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; display: grid; place-items: center; font-size: 14px; transition: all .2s; flex-shrink: 0; }
 .btn-remove-hir:hover { background: rgba(239, 68, 68, 0.12); color: #ef4444; border-color: rgba(239, 68, 68, 0.3); }
 .add-health-item-btn { align-self: flex-start; border-style: dashed !important; font-weight: 600; padding: 0 14px; height: 36px; border-radius: 10px; }
