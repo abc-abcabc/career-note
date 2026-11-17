@@ -31,6 +31,7 @@ const state = {
   trainingFilterCat: '',
   sort: 'desc',
   goalYear: THIS_YEAR,
+  challengeYear: THIS_YEAR,
   resume: { cats: CATEGORIES.filter((c) => !['dailylog', 'health', 'hospital', 'reservation'].includes(c.id)).map((c) => c.id), from: '', to: '', desc: false, profile: true },
   modal: { cat: null, record: null, fromPicker: false },
 };
@@ -142,16 +143,59 @@ function parseHash() {
   const [view, arg] = location.hash.replace(/^#\/?/, '').split('/');
   if (view === 'c' && arg === 'health') { state.growthView = 'health'; return { view: 'category', cat: 'dailylog' }; }
   if (view === 'c' && CATEGORY_MAP[arg]) return { view: 'category', cat: arg };
-  if (['dashboard', 'timeline', 'resume', 'settings', 'apps'].includes(view)) return { view, cat: null };
+  if (['dashboard', 'timeline', 'challenges', 'resume', 'settings', 'apps'].includes(view)) return { view, cat: null };
   return { view: 'dashboard', cat: null };
 }
 
-const PAGE_TITLES = { dashboard: '대시보드', timeline: '타임라인', resume: '이력서 출력', settings: '설정', apps: '내 웹앱' };
+const PAGE_TITLES = { dashboard: '대시보드', timeline: '타임라인', challenges: '도전', resume: '이력서 출력', settings: '설정', apps: '내 웹앱' };
+
+function viewChallenges() {
+  const year = state.challengeYear;
+  const items = (Array.isArray(state.settings.challenges) ? state.settings.challenges : [])
+    .filter((item) => Number(item.year) === year);
+  const done = items.filter((item) => item.done).length;
+  return `<header class="page-head"><div class="ph-icon">🎯</div><div class="ph-text"><h1>도전</h1><p>연도별로 이루고 싶은 목표를 기록하고 완료 여부를 관리하세요.</p></div></header>
+    <section class="card challenge-panel">
+      <div class="challenge-heading"><h2>${year}년 도전 <span class="muted sm">${done}/${items.length} 완료</span></h2>
+        <div class="challenge-years"><button class="icon-btn sm" data-action="challenge-prev" aria-label="이전 연도">‹</button><strong>${year}년</strong><button class="icon-btn sm" data-action="challenge-next" aria-label="다음 연도">›</button></div></div>
+      <form id="challenge-form" class="challenge-form"><label class="sr-only" for="challenge-title">성취하고 싶은 내용</label><input class="input" id="challenge-title" name="title" maxlength="300" required placeholder="${year}년에 성취하고 싶은 내용을 입력하세요"><button class="btn btn-primary" type="submit">추가</button></form>
+      ${items.length ? `<ul class="challenge-list">${items.map((item) => `<li class="${item.done ? 'done' : ''}"><label><input type="checkbox" data-challenge-toggle="${esc(item.id)}" ${item.done ? 'checked' : ''}><span>${esc(item.title)}</span></label><button class="icon-btn sm danger" data-action="challenge-delete" data-id="${esc(item.id)}" aria-label="도전 삭제">🗑</button></li>`).join('')}</ul>` : '<p class="muted challenge-empty">아직 등록한 도전이 없어요. 올해 이루고 싶은 일을 추가해 보세요.</p>'}
+    </section>`;
+}
+
+async function saveChallenges(items) {
+  await store.saveSettings({ ...state.settings, challenges: items });
+  state.settings = { ...state.settings, challenges: items };
+  render();
+}
 
 /* ───────────────────────── 내 웹앱 (외부 링크) ───────────────────────── */
 const APPS_KEY = 'careernote.apps';
+/* Vercel로 배포된 내 웹앱 기본 목록 (MY.WEB 북마크 기준). 처음 한 번만 합쳐 넣고, 이후 삭제는 유지됩니다. */
+const APPS_SEEDED_KEY = 'careernote.apps.seeded1';
+const DEFAULT_APPS = [
+  { name: 'EduBudget · 연구회 운영비 관리', icon: '💰', url: 'https://edubudget-sand.vercel.app/' },
+  { name: '킨볼 대회 스코어보드', icon: '🏐', url: 'https://kinball-scoreboard.vercel.app/' },
+  { name: 'dayflow', icon: '📅', url: 'https://dayflow-abc-b5c7.vercel.app/' },
+  { name: '전담시간표(영어,즐생,도덕)', icon: '🗓️', url: 'https://noam-timetable.vercel.app/' },
+  { name: '강원교총 2030청년위원회', icon: '🤝', url: 'https://gangwon2030.vercel.app/' },
+  { name: '지금 뜨는 경제·정치 영상', icon: '📈', url: 'https://h-abc-b5c7.vercel.app/' },
+  { name: '문장 마스터 PRO', icon: '✍️', url: 'https://sentence-master-eight.vercel.app/' },
+  { name: '제31회 강원초등교원체육대회 선수단 관리', icon: '🏅', url: 'https://gangeung-pe.vercel.app/' },
+  { name: '교원 승진 계산기', icon: '🧮', url: 'https://promotion-score.vercel.app/' },
+];
 function loadApps() {
-  try { const a = JSON.parse(localStorage.getItem(APPS_KEY)); return Array.isArray(a) ? a : []; } catch { return []; }
+  let list = [];
+  try { const a = JSON.parse(localStorage.getItem(APPS_KEY)); list = Array.isArray(a) ? a : []; } catch { list = []; }
+  try {
+    if (!localStorage.getItem(APPS_SEEDED_KEY)) {
+      const have = new Set(list.map((x) => String(x.url).replace(/\/$/, '')));
+      DEFAULT_APPS.forEach((d) => { if (!have.has(d.url.replace(/\/$/, ''))) list.push({ ...d }); });
+      localStorage.setItem(APPS_KEY, JSON.stringify(list));
+      localStorage.setItem(APPS_SEEDED_KEY, '1');
+    }
+  } catch { /* ignore */ }
+  return list;
 }
 function saveApps(list) {
   try { localStorage.setItem(APPS_KEY, JSON.stringify(list)); } catch { /* ignore */ }
@@ -200,6 +244,7 @@ function render() {
   const html = {
     dashboard: viewDashboard,
     timeline: viewTimeline,
+    challenges: viewChallenges,
     category: () => viewCategory(cat),
     resume: viewResume,
     settings: viewSettings,
@@ -2105,7 +2150,7 @@ function bindEvents() {
     }
   });
 
-  document.addEventListener('click', (e) => {
+  document.addEventListener('click', async (e) => {
     if (e.target.closest('[data-stop]')) return;
     if (e.target.classList.contains('modal-overlay')) {
       if (overlayDownTarget !== e.target) return;
@@ -2146,6 +2191,14 @@ function bindEvents() {
       case 'csv': exportCSV(cat); break;
       case 'goal-prev': state.goalYear--; render(); break;
       case 'goal-next': state.goalYear++; render(); break;
+      case 'challenge-prev': state.challengeYear--; render(); break;
+      case 'challenge-next': state.challengeYear++; render(); break;
+      case 'challenge-delete': {
+        const items = Array.isArray(state.settings.challenges) ? state.settings.challenges : [];
+        try { await saveChallenges(items.filter((item) => item.id !== id)); toast('도전을 삭제했어요.'); }
+        catch (err) { handleError(err); }
+        break;
+      }
       case 'delete-app': { const l = loadApps(); l.splice(Number(t.dataset.idx), 1); saveApps(l); render(); break; }
       case 'print': window.print(); break;
       case 'rcat-all': state.resume.cats = CATEGORIES.map((c) => c.id); render(); break;
@@ -2182,6 +2235,11 @@ function bindEvents() {
 
   document.addEventListener('change', (e) => {
     const el = e.target;
+    if (el.dataset.challengeToggle) {
+      const items = Array.isArray(state.settings.challenges) ? state.settings.challenges : [];
+      saveChallenges(items.map((item) => item.id === el.dataset.challengeToggle ? { ...item, done: el.checked } : item)).catch(handleError);
+      return;
+    }
     if (el.id === 'f-year') { state.filterYear = el.value; render(); }
     else if (el.id === 'f-sort') { state.sort = el.value; render(); }
     else if (el.id === 'f-cat') { state.filterCat = el.value; render(); }
@@ -2197,6 +2255,18 @@ function bindEvents() {
 
   document.addEventListener('submit', async (e) => {
     e.preventDefault();
+    if (e.target.id === 'challenge-form') {
+      const title = $('#challenge-title').value.trim();
+      if (!title) return;
+      const btn = e.target.querySelector('button[type="submit"]');
+      btn.disabled = true;
+      const items = Array.isArray(state.settings.challenges) ? state.settings.challenges : [];
+      try {
+        await saveChallenges([...items, { id: crypto.randomUUID(), year: state.challengeYear, title, done: false }]);
+        toast('도전을 추가했어요.');
+      } catch (err) { btn.disabled = false; handleError(err); }
+      return;
+    }
     if (e.target.id === 'record-form') saveRecord(e.target);
     if (e.target.id === 'app-form') {
       const fd = Object.fromEntries(new FormData(e.target));

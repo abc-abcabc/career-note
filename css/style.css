@@ -1136,6 +1136,23 @@ button.hir-icon-btn:hover, button.hir-icon-btn:focus-visible { border-color: var
 .rp-hl li:hover { background: rgba(148, 163, 184, .1); }
 .rp-hl time { font-size: 12px; color: var(--muted); padding-top: 2px; }
 .rp-hl p { margin: 2px 0 0; font-size: 12.5px; color: var(--muted); display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+/* 연도별 도전 */
+.sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+.challenge-panel { max-width: 850px; }
+.challenge-heading, .challenge-years, .challenge-form, .challenge-list li { display: flex; align-items: center; gap: 12px; }
+.challenge-heading { justify-content: space-between; flex-wrap: wrap; margin-bottom: 18px; }
+.challenge-heading h2 { margin: 0; }
+.challenge-years strong { min-width: 66px; text-align: center; }
+.challenge-form { margin-bottom: 20px; }
+.challenge-form .input { flex: 1; min-width: 0; }
+.challenge-list { padding: 0; margin: 0; list-style: none; }
+.challenge-list li { justify-content: space-between; padding: 12px 4px; border-top: 1px solid var(--border); }
+.challenge-list label { display: flex; align-items: center; gap: 12px; min-width: 0; cursor: pointer; }
+.challenge-list input { width: 18px; height: 18px; accent-color: #10b981; flex: none; }
+.challenge-list span { overflow-wrap: anywhere; }
+.challenge-list .done span { color: var(--muted); text-decoration: line-through; }
+.challenge-empty { padding: 14px 0; }
+@media (max-width: 500px) { .challenge-form { flex-wrap: wrap; } .challenge-form .input { flex-basis: 100%; } }
 @media (max-width: 800px) {
   .rp-summary { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .rp-grid { grid-template-columns: 1fr; }
