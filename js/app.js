@@ -184,17 +184,6 @@ const DEFAULT_APPS = [
   { name: '제31회 강원초등교원체육대회 선수단 관리', url: 'https://gangeung-pe.vercel.app/' },
   { name: '교원 승진 계산기', url: 'https://promotion-score.vercel.app/' },
 ];
-const FAV_PATHS = ['/favicon.ico', '/icon.svg', '/favicon.svg', '/icons/icon.svg', '/icons/icon-192.png', '/apple-touch-icon.png'];
-function appFavicon(url) {
-  try { return new URL(url).origin + FAV_PATHS[0]; } catch { return ''; }
-}
-/* 앱 고유 아이콘을 후보 경로 순서대로 시도하고, 모두 없으면 아이콘을 숨깁니다. */
-window.appFavNext = function (img) {
-  const n = (Number(img.dataset.i) || 0) + 1;
-  if (n >= FAV_PATHS.length) { img.remove(); return; }
-  img.dataset.i = n;
-  try { img.src = new URL(img.src).origin + FAV_PATHS[n]; } catch { img.remove(); }
-};
 function loadApps() {
   let list = [];
   try { const a = JSON.parse(localStorage.getItem(APPS_KEY)); list = Array.isArray(a) ? a : []; } catch { list = []; }
@@ -217,7 +206,6 @@ function viewApps() {
     ? apps.map((a, i) => `
       <div class="card" style="display:flex;align-items:center;gap:12px;justify-content:space-between">
         <a class="app-link" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">
-          <img class="app-fav" src="${esc(appFavicon(a.url))}" alt="" width="32" height="32" data-i="0" loading="lazy" referrerpolicy="no-referrer" onerror="appFavNext(this)">
           <span class="app-text"><strong class="app-name">${esc(a.name)}</strong><span class="app-url">${esc(a.url)}</span></span>
         </a>
         <a class="btn btn-primary" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">열기 ↗</a>
