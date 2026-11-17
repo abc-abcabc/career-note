@@ -174,16 +174,19 @@ const APPS_KEY = 'careernote.apps';
 /* Vercel로 배포된 내 웹앱 기본 목록 (MY.WEB 북마크 기준). 처음 한 번만 합쳐 넣고, 이후 삭제는 유지됩니다. */
 const APPS_SEEDED_KEY = 'careernote.apps.seeded1';
 const DEFAULT_APPS = [
-  { name: 'EduBudget · 연구회 운영비 관리', icon: '💰', url: 'https://edubudget-sand.vercel.app/' },
-  { name: '킨볼 대회 스코어보드', icon: '🏐', url: 'https://kinball-scoreboard.vercel.app/' },
-  { name: 'dayflow', icon: '📅', url: 'https://dayflow-abc-b5c7.vercel.app/' },
-  { name: '전담시간표(영어,즐생,도덕)', icon: '🗓️', url: 'https://noam-timetable.vercel.app/' },
-  { name: '강원교총 2030청년위원회', icon: '🤝', url: 'https://gangwon2030.vercel.app/' },
-  { name: '지금 뜨는 경제·정치 영상', icon: '📈', url: 'https://h-abc-b5c7.vercel.app/' },
-  { name: '문장 마스터 PRO', icon: '✍️', url: 'https://sentence-master-eight.vercel.app/' },
-  { name: '제31회 강원초등교원체육대회 선수단 관리', icon: '🏅', url: 'https://gangeung-pe.vercel.app/' },
-  { name: '교원 승진 계산기', icon: '🧮', url: 'https://promotion-score.vercel.app/' },
+  { name: 'EduBudget · 연구회 운영비 관리', url: 'https://edubudget-sand.vercel.app/' },
+  { name: '킨볼 대회 스코어보드', url: 'https://kinball-scoreboard.vercel.app/' },
+  { name: 'dayflow', url: 'https://dayflow-abc-b5c7.vercel.app/' },
+  { name: '전담시간표(영어,즐생,도덕)', url: 'https://noam-timetable.vercel.app/' },
+  { name: '강원교총 2030청년위원회', url: 'https://gangwon2030.vercel.app/' },
+  { name: '지금 뜨는 경제·정치 영상', url: 'https://h-abc-b5c7.vercel.app/' },
+  { name: '문장 마스터 PRO', url: 'https://sentence-master-eight.vercel.app/' },
+  { name: '제31회 강원초등교원체육대회 선수단 관리', url: 'https://gangeung-pe.vercel.app/' },
+  { name: '교원 승진 계산기', url: 'https://promotion-score.vercel.app/' },
 ];
+function appFavicon(url) {
+  try { return 'https://www.google.com/s2/favicons?sz=64&domain=' + encodeURIComponent(new URL(url).hostname); } catch { return ''; }
+}
 function loadApps() {
   let list = [];
   try { const a = JSON.parse(localStorage.getItem(APPS_KEY)); list = Array.isArray(a) ? a : []; } catch { list = []; }
@@ -205,9 +208,9 @@ function viewApps() {
   const cards = apps.length
     ? apps.map((a, i) => `
       <div class="card" style="display:flex;align-items:center;gap:12px;justify-content:space-between">
-        <a class="link" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer" style="flex:1;min-width:0">
-          <strong>${esc(a.icon || '🌐')} ${esc(a.name)}</strong>
-          <div class="muted sm" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(a.url)}</div>
+        <a class="app-link" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">
+          <img class="app-fav" src="${esc(appFavicon(a.url))}" alt="" width="32" height="32" loading="lazy" referrerpolicy="no-referrer" onerror="this.style.visibility='hidden'">
+          <span class="app-text"><strong class="app-name">${esc(a.name)}</strong><span class="app-url">${esc(a.url)}</span></span>
         </a>
         <a class="btn btn-primary" href="${esc(a.url)}" target="_blank" rel="noopener noreferrer">열기 ↗</a>
         <button class="btn btn-ghost" data-action="delete-app" data-idx="${i}" aria-label="삭제">🗑</button>
@@ -223,7 +226,6 @@ function viewApps() {
     <h2>➕ 웹앱 추가</h2>
     <div class="form-grid">
       <div class="field"><label for="app-name">이름</label><input class="input" id="app-name" name="name" required placeholder="출결 관리"></div>
-      <div class="field"><label for="app-icon">아이콘 (이모지)</label><input class="input" id="app-icon" name="icon" maxlength="4" placeholder="📚"></div>
       <div class="field"><label for="app-url">주소 (URL)</label><input class="input" id="app-url" name="url" type="url" required placeholder="https://..."></div>
     </div>
     <div class="form-actions"><button class="btn btn-primary" type="submit">추가</button></div>
@@ -2271,7 +2273,7 @@ function bindEvents() {
     if (e.target.id === 'app-form') {
       const fd = Object.fromEntries(new FormData(e.target));
       if (!/^https?:\/\//i.test(fd.url)) return toast('주소는 http:// 또는 https:// 로 시작해야 해요.', 'error');
-      saveApps([...loadApps(), { name: fd.name.trim(), icon: fd.icon.trim(), url: fd.url.trim() }]);
+      saveApps([...loadApps(), { name: fd.name.trim(), url: fd.url.trim() }]);
       render();
       toast('웹앱을 추가했어요.');
     }

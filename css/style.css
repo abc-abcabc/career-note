@@ -1159,3 +1159,11 @@ button.hir-icon-btn:hover, button.hir-icon-btn:focus-visible { border-color: var
   .rp-nav { margin-left: 0; width: 100%; justify-content: space-between; }
   .rp-row { grid-template-columns: 96px 1fr auto; }
 }
+
+/* 내 웹앱 카드: 앱 고유 아이콘 + 선명한 글자 */
+.app-link { flex: 1; min-width: 0; display: flex; align-items: center; gap: 14px; color: var(--text); }
+.app-fav { width: 32px; height: 32px; border-radius: 8px; flex: none; background: var(--surface-2); object-fit: contain; }
+.app-text { display: flex; flex-direction: column; min-width: 0; gap: 2px; }
+.app-name { font-size: 16px; font-weight: 700; color: var(--text); }
+.app-url { font-size: 13px; font-weight: 500; color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.app-link:hover .app-name { text-decoration: underline; }
