@@ -32,6 +32,14 @@ const state = {
   sort: 'desc',
   goalYear: THIS_YEAR,
   challengeYear: THIS_YEAR,
+  todayDate: todayStr(),
+  todaySearch: '',
+  todayDoneOpen: false,
+  noteId: '',
+  noteFolder: '',
+  noteTag: '',
+  noteQuery: '',
+  noteMobileEdit: false,
   resume: { cats: CATEGORIES.filter((c) => !['dailylog', 'health', 'hospital', 'reservation'].includes(c.id)).map((c) => c.id), from: '', to: '', desc: false, profile: true },
   modal: { cat: null, record: null, fromPicker: false },
 };
@@ -114,12 +122,13 @@ function onLogin(user) {
       state.records = records;
       state.loaded = true;
       renderCounts();
-      render();
+      if (!todayTyping()) render();
     },
     (settings) => {
-      state.settings = { ...DEFAULT_SETTINGS, ...settings };
+      const keep = todayTyping() ? { daily: state.settings.daily, notes: state.settings.notes } : {};
+      state.settings = { ...DEFAULT_SETTINGS, ...settings, ...keep };
       renderUser();
-      if (state.route.view !== 'settings') render();
+      if (state.route.view !== 'settings' && !todayTyping()) render();
     },
     handleError
   );
@@ -143,11 +152,11 @@ function parseHash() {
   const [view, arg] = location.hash.replace(/^#\/?/, '').split('/');
   if (view === 'c' && arg === 'health') { state.growthView = 'health'; return { view: 'category', cat: 'dailylog' }; }
   if (view === 'c' && CATEGORY_MAP[arg]) return { view: 'category', cat: arg };
-  if (['dashboard', 'timeline', 'challenges', 'resume', 'settings', 'apps'].includes(view)) return { view, cat: null };
+  if (['dashboard', 'today', 'notes', 'timeline', 'challenges', 'resume', 'settings', 'apps'].includes(view)) return { view, cat: null };
   return { view: 'dashboard', cat: null };
 }
 
-const PAGE_TITLES = { dashboard: '대시보드', timeline: '타임라인', challenges: '도전', resume: '이력서 출력', settings: '설정', apps: '내 웹앱' };
+const PAGE_TITLES = { dashboard: '대시보드', today: 'Today', notes: '메모', timeline: '타임라인', challenges: '도전', resume: '이력서 출력', settings: '설정', apps: '내 웹앱' };
 
 function viewChallenges() {
   const year = state.challengeYear;
@@ -167,6 +176,458 @@ async function saveChallenges(items) {
   await store.saveSettings({ ...state.settings, challenges: items });
   state.settings = { ...state.settings, challenges: items };
   render();
+}
+
+/* ───────────────────────── Today (오늘 할 일 + 날짜별 메모) ───────────────────────── */
+// 데이터: settings.daily[YYYY-MM-DD] = { items: [{ id, text, done }], memo }
+const TD_DOW = ['일', '월', '화', '수', '목', '금', '토'];
+const p2 = (n) => String(n).padStart(2, '0');
+function dateLabel(s) {
+  const [y, m, d] = s.split('-').map(Number);
+  return `${y}년 ${m}월 ${d}일 (${TD_DOW[new Date(y, m - 1, d).getDay()]})`;
+}
+function shiftDate(s, n) {
+  const [y, m, d] = s.split('-').map(Number);
+  const dt = new Date(y, m - 1, d + n);
+  return `${dt.getFullYear()}-${p2(dt.getMonth() + 1)}-${p2(dt.getDate())}`;
+}
+function getDaily() {
+  const d = state.settings.daily;
+  return d && typeof d === 'object' && !Array.isArray(d) ? d : {};
+}
+function getDay(date) {
+  const d = getDaily()[date];
+  const items = Array.isArray(d?.items) ? d.items.map((i) => ({ id: i.id, text: String(i.text || ''), done: !!i.done })) : [];
+  return { items, memo: typeof d?.memo === 'string' ? d.memo : '' };
+}
+function setDayLocal(date, day) {
+  // 비어 있어도 키는 지우지 않음 (Firestore merge 저장에서는 삭제가 반영되지 않기 때문)
+  state.settings = { ...state.settings, daily: { ...getDaily(), [date]: { items: day.items, memo: day.memo } } };
+}
+async function saveDay(date, day, { rerender = true } = {}) {
+  setDayLocal(date, day);
+  if (rerender) render();
+  try { await store.saveSettings({ ...state.settings }); } catch (err) { handleError(err); }
+}
+const todayTyping = () => ['today', 'notes'].includes(state.route.view) && !!document.activeElement?.matches?.('#view textarea, #view input[type="text"], #view input[type="search"], #view [contenteditable="true"]');
+const dayHasContent = (d) => d.items.length > 0 || d.memo.trim() !== '';
+
+function hl(text, q) {
+  if (!q) return esc(text);
+  const i = text.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return esc(text);
+  return esc(text.slice(0, i)) + '<mark>' + esc(text.slice(i, i + q.length)) + '</mark>' + hl(text.slice(i + q.length), q);
+}
+function memoSnippet(memo, q) {
+  const i = memo.toLowerCase().indexOf(q.toLowerCase());
+  if (i < 0) return '';
+  const s = Math.max(0, i - 30), e = Math.min(memo.length, i + q.length + 60);
+  return (s > 0 ? '…' : '') + memo.slice(s, e).replace(/\s*\n\s*/g, ' ') + (e < memo.length ? '…' : '');
+}
+function todayResultsHtml() {
+  const q = state.todaySearch.trim();
+  const dates = Object.keys(getDaily()).sort().reverse();
+  const hit = (d, body) => `<button type="button" class="td-hit" data-action="today-goto" data-date="${d}"><strong>${dateLabel(d)}</strong>${body}</button>`;
+  if (q) {
+    const ql = q.toLowerCase();
+    const rows = [];
+    dates.forEach((d) => {
+      const day = getDay(d);
+      const its = day.items.filter((i) => i.text.toLowerCase().includes(ql));
+      const memoHit = day.memo.toLowerCase().includes(ql);
+      if (!its.length && !memoHit) return;
+      rows.push(hit(d,
+        its.map((i) => `<div class="td-hit-line ${i.done ? 'done' : ''}">${i.done ? '☑' : '☐'} ${hl(i.text, q)}</div>`).join('') +
+        (memoHit ? `<div class="td-hit-memo">📝 ${hl(memoSnippet(day.memo, q), q)}</div>` : '')));
+    });
+    return rows.length ? `<p class="muted sm td-res-count">${rows.length}일에서 찾았어요</p><div class="td-hits">${rows.join('')}</div>` : '<p class="muted td-empty">검색 결과가 없어요.</p>';
+  }
+  const rows = dates.filter((d) => dayHasContent(getDay(d))).slice(0, 10).map((d) => {
+    const day = getDay(d);
+    const done = day.items.filter((i) => i.done).length;
+    const parts = [];
+    if (day.items.length) parts.push(`할 일 ${done}/${day.items.length} 완료`);
+    if (day.memo.trim()) parts.push('메모 있음');
+    return hit(d, `<div class="td-hit-line muted">${parts.join(' · ')}</div>`);
+  });
+  return rows.length ? `<p class="muted sm td-res-count">최근 기록</p><div class="td-hits">${rows.join('')}</div>` : '<p class="muted td-empty">아직 기록이 없어요. 위에서 할 일이나 메모를 남겨 보세요.</p>';
+}
+
+/* ── Google 캘린더 (오늘 요약용, 읽기 전용) ── */
+state.cal = { status: 'idle', date: '', events: [], msg: '', help: '' };
+const calTime = (e) => {
+  if (e.allDay) return '종일';
+  const f = (v) => { const d = new Date(v); return `${p2(d.getHours())}:${p2(d.getMinutes())}`; };
+  return e.end ? `${f(e.start)}–${f(e.end)}` : f(e.start);
+};
+function calBlockHtml() {
+  const c = state.cal;
+  const connected = !!store.cal?.hasToken();
+  const head = (extra = '') => `<div class="td-cal-head"><strong>📆 Google 캘린더</strong>${extra}</div>`;
+  if (!store.cal) return '';
+  if (connected && (c.date !== state.todayDate || c.status === 'loading')) return head() + '<p class="muted sm td-cal-note">일정을 불러오는 중…</p>';
+  if (connected && c.status === 'ok') {
+    const rows = c.events.map((e) => `<${e.link ? 'a href="' + esc(e.link) + '" target="_blank" rel="noopener noreferrer"' : 'div'} class="td-sum-row td-cal-row"><span class="td-sum-ic">📆</span><span class="td-sum-text">${esc(e.title)}${e.location ? `<small class="td-cal-sub">📍 ${esc(e.location)}</small>` : ''}${e.calendar ? `<small class="td-cal-sub">${esc(e.calendar)}</small>` : ''}</span><span class="td-sum-time">${calTime(e)}</span></${e.link ? 'a' : 'div'}>`).join('');
+    return head(`<span class="td-cal-tools"><button type="button" class="icon-btn sm" data-action="cal-refresh" title="새로고침" aria-label="캘린더 새로고침">⟳</button><button type="button" class="btn btn-ghost td-cal-off" data-action="cal-off">연결 해제</button></span>`)
+      + (rows ? `<div class="td-sum-list">${rows}</div>` : '<p class="muted sm td-cal-note">이 날 캘린더에 일정이 없어요.</p>');
+  }
+  if (c.status === 'error') {
+    const help = c.help === 'api' ? `<p class="muted sm td-cal-note">구글 클라우드에서 한 번만 설정이 필요해요. <a class="link" target="_blank" rel="noopener noreferrer" href="https://console.cloud.google.com/apis/library/calendar-json.googleapis.com?project=${esc(firebaseConfig.projectId)}">Google Calendar API 사용 설정하기</a> 를 열어 “사용”을 누른 뒤, 아래 버튼을 다시 눌러 주세요.</p>` : '';
+    return head() + `<p class="td-cal-err">${esc(c.msg)}</p>` + help + '<button type="button" class="btn btn-ghost" data-action="cal-connect">다시 시도</button>';
+  }
+  const expired = !connected && localStorage.getItem('careernote.cal');
+  return head() + `<p class="muted sm td-cal-note">${expired ? '연결이 만료됐어요. (보안상 약 1시간마다 다시 연결해요.)' : '오늘 일정을 요약에 함께 보려면 구글 캘린더를 연결하세요. 읽기만 하고 수정하지 않아요.'}</p><button type="button" class="btn btn-primary" data-action="cal-connect">📆 ${expired ? '다시 연결' : 'Google 캘린더 연결'}</button>`;
+}
+const paintCal = () => { const el = $('#td-cal'); if (el) el.innerHTML = calBlockHtml(); };
+async function maybeLoadCalendar(force = false) {
+  if (state.route.view !== 'today' || !store?.cal) return;
+  const date = state.todayDate;
+  if (!store.cal.hasToken()) { if (state.cal.status !== 'error') state.cal = { status: 'idle', date, events: [], msg: '', help: '' }; paintCal(); return; }
+  if (state.cal.date === date && state.cal.status === 'loading') return;
+  if (state.cal.date === date && state.cal.status === 'ok' && !force) { paintCal(); return; }
+  state.cal = { status: 'loading', date, events: [], msg: '', help: '' };
+  paintCal();
+  try {
+    const events = await store.cal.events(date);
+    if (state.todayDate !== date) return;
+    state.cal = { status: 'ok', date, events, msg: '', help: '' };
+  } catch (err) {
+    if (err.code === 'cal/expired') state.cal = { status: 'idle', date, events: [], msg: '', help: '' };
+    else state.cal = { status: 'error', date, events: [], help: err.code === 'cal/403' ? 'api' : '', msg: err.code === 'cal/403' ? '캘린더를 읽을 수 없어요. (Google Calendar API가 꺼져 있거나 권한이 없어요.)' : `캘린더를 불러오지 못했어요: ${err.message}` };
+  }
+  paintCal();
+}
+async function connectCalendar() {
+  state.cal = { status: 'loading', date: state.todayDate, events: [], msg: '', help: '' };
+  paintCal();
+  try {
+    await store.cal.connect();
+    localStorage.setItem('careernote.cal', '1');
+    state.cal = { status: 'idle', date: '', events: [], msg: '', help: '' };
+    await maybeLoadCalendar(true);
+  } catch (err) {
+    const msg = {
+      'auth/popup-blocked': '팝업이 차단되었어요. 브라우저에서 팝업을 허용해 주세요.',
+      'auth/popup-closed-by-user': '연결 창이 닫혔어요.',
+      'auth/cancelled-popup-request': '연결 창이 닫혔어요.',
+      'auth/user-mismatch': '로그인한 계정과 같은 Google 계정을 선택해 주세요.',
+    }[err.code] || `연결하지 못했어요: ${err.message}`;
+    state.cal = { status: 'error', date: state.todayDate, events: [], msg, help: '' };
+    paintCal();
+  }
+}
+
+function todaySummaryHtml(date, day) {
+  const recs = state.records;
+  const rows = [];
+  const row = (r, icon, text, time) => rows.push(`<button type="button" class="td-sum-row" data-action="edit" data-id="${esc(r.id)}"><span class="td-sum-ic">${icon}</span><span class="td-sum-text">${esc(text)}</span>${time ? `<span class="td-sum-time">${esc(time)}</span>` : ''}</button>`);
+  const appts = recs.filter((r) => (r.category === 'reservation' && r.status === '예약 완료' && r.bookedDate === date) || (r.category === 'hospital' && r.nextVisit === date));
+  appts.forEach((r) => (r.category === 'reservation'
+    ? row(r, '📅', `${r.title}${r.reason ? ' · ' + r.reason : ''} 예약`, r.bookedTime)
+    : row(r, '🏥', `${r.title}${r.department ? ' · ' + r.department : ''} 진료 예약`, r.nextTime)));
+  const need = recs.filter((r) => r.category === 'reservation' && r.status !== '예약 완료' && r.date === date);
+  need.forEach((r) => row(r, '⏰', `${r.title}${r.reason ? ' · ' + r.reason : ''} — 오늘쯤 예약하기`, ''));
+  const training = recs.filter((r) => r.category === 'training' && r.startDate && r.startDate <= date && (r.endDate ? r.endDate >= date : r.startDate === date));
+  training.forEach((r) => row(r, '📚', `연수 진행 중: ${r.title}`, ''));
+  const done = day.items.filter((i) => i.done).length;
+  const open = day.items.length - done;
+  const chips = [
+    `<span class="td-chip">✅ 할 일 ${done}/${day.items.length} 완료${open ? ` · ${open}개 남음` : ''}</span>`,
+    `<span class="td-chip">📅 예약·진료 ${appts.length + need.length}</span>`,
+    `<span class="td-chip">📚 연수 ${training.length}</span>`,
+    day.memo.trim() ? '<span class="td-chip">📝 메모 있음</span>' : '',
+  ].join('');
+  const challenges = (Array.isArray(state.settings.challenges) ? state.settings.challenges : []).filter((c) => Number(c.year) === Number(date.slice(0, 4)) && !c.done).length;
+  return `<section class="card td-panel td-summary">
+    <h2>📌 ${date === todayStr() ? '오늘' : dateLabel(date)} 요약</h2>
+    <div class="td-chips">${chips}</div>
+    ${rows.length ? `<div class="td-sum-list">${rows.join('')}</div>` : '<p class="muted td-empty">이 날 앱에 기록된 예약·연수 일정은 없어요.</p>'}
+    <div class="td-cal" id="td-cal">${calBlockHtml()}</div>
+    ${date === todayStr() && challenges ? `<p class="muted sm td-sum-foot">🎯 올해 도전 ${challenges}개가 아직 남아 있어요. <a href="#/challenges" class="link">보러 가기</a></p>` : ''}
+  </section>`;
+}
+
+function viewToday() {
+  const date = state.todayDate;
+  const day = getDay(date);
+  const open = day.items.filter((i) => !i.done);
+  const done = day.items.filter((i) => i.done);
+  const li = (i) => `<li class="td-item ${i.done ? 'done' : ''}"><input type="checkbox" class="td-check" data-today-toggle="${esc(i.id)}" ${i.done ? 'checked' : ''} aria-label="완료 표시"><span class="td-text" contenteditable="true" spellcheck="false" data-today-edit="${esc(i.id)}">${esc(i.text)}</span><button type="button" class="icon-btn sm danger td-del" data-action="today-delete" data-id="${esc(i.id)}" aria-label="삭제">✕</button></li>`;
+  return `<header class="page-head"><div class="ph-icon">✅</div><div class="ph-text"><h1>Today</h1><p>오늘 할 일을 체크하고, 날짜별로 메모를 남겨 보세요.</p></div></header>
+  ${todaySummaryHtml(date, day)}
+  <section class="card td-panel">
+    <div class="td-datebar">
+      <button type="button" class="icon-btn sm" data-action="today-prev" aria-label="전날">‹</button>
+      <input type="date" class="input td-date" id="today-date" value="${esc(date)}" aria-label="날짜 선택">
+      <button type="button" class="icon-btn sm" data-action="today-next" aria-label="다음 날">›</button>
+      <strong class="td-label">${dateLabel(date)}</strong>
+      ${date !== todayStr() ? '<button type="button" class="btn btn-ghost" data-action="today-now">오늘로</button>' : '<span class="chip-sm">오늘</span>'}
+    </div>
+    <form id="today-form" class="td-add" autocomplete="off"><label class="sr-only" for="today-input">할 일 추가</label><input class="input" type="text" id="today-input" maxlength="300" placeholder="할 일 추가…"><button class="btn btn-primary" type="submit">추가</button></form>
+    ${open.length ? `<ul class="td-list">${open.map(li).join('')}</ul>` : `<p class="muted td-empty">${day.items.length ? '모든 할 일을 마쳤어요 🎉' : '아직 할 일이 없어요. 위에서 추가해 보세요.'}</p>`}
+    ${done.length ? `<details class="td-done" id="td-done" ${state.todayDoneOpen ? 'open' : ''}><summary>완료된 항목 ${done.length}개</summary><ul class="td-list">${done.map(li).join('')}</ul></details>` : ''}
+    <div class="td-tools"><button type="button" class="btn btn-ghost" data-action="today-carry">↩ 지난 미완료 항목 가져오기</button></div>
+  </section>
+  <section class="card td-panel">
+    <h2>📝 ${dateLabel(date)} 메모</h2>
+    <textarea class="input td-memo" id="today-memo" rows="7" placeholder="이 날의 메모를 자유롭게 적어 보세요. 자동으로 저장돼요.">${esc(day.memo)}</textarea>
+  </section>
+  <section class="card td-panel">
+    <h2>🔍 날짜별 기록 검색</h2>
+    <input type="search" class="input" id="today-search" value="${esc(state.todaySearch)}" placeholder="모든 날짜의 할 일·메모에서 검색" autocomplete="off">
+    <div id="today-results">${todayResultsHtml()}</div>
+  </section>`;
+}
+
+let memoTimer = null;
+function flushMemo() {
+  if (!memoTimer) return;
+  clearTimeout(memoTimer);
+  memoTimer = null;
+  const date = state.todayDate;
+  saveDay(date, getDay(date), { rerender: false });
+}
+async function todayItems(fn) {
+  const date = state.todayDate;
+  const day = getDay(date);
+  await saveDay(date, { items: fn(day.items), memo: day.memo });
+}
+function gotoDate(d) { flushMemo(); state.todayDate = d; render(); window.scrollTo(0, 0); }
+
+function bindTodayEvents() {
+  document.addEventListener('submit', (e) => {
+    if (e.target.id !== 'today-form') return;
+    e.preventDefault();
+    const input = $('#today-input');
+    const text = input.value.trim();
+    if (!text) return;
+    todayItems((items) => [...items, { id: crypto.randomUUID(), text, done: false }]);
+    $('#today-input')?.focus();
+  });
+  document.addEventListener('change', (e) => {
+    const el = e.target;
+    if (el.dataset?.todayToggle) {
+      todayItems((items) => items.map((i) => (i.id === el.dataset.todayToggle ? { ...i, done: el.checked } : i)));
+    } else if (el.id === 'today-date' && el.value) {
+      gotoDate(el.value);
+    }
+  });
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    if (el.id === 'today-memo') {
+      const date = state.todayDate;
+      setDayLocal(date, { items: getDay(date).items, memo: el.value });
+      clearTimeout(memoTimer);
+      memoTimer = setTimeout(flushMemo, 700);
+    } else if (el.id === 'today-search') {
+      state.todaySearch = el.value;
+      $('#today-results').innerHTML = todayResultsHtml();
+    }
+  });
+  document.addEventListener('focusout', (e) => {
+    const el = e.target;
+    if (el.id === 'today-memo') flushMemo();
+    else if (el.dataset?.todayEdit) {
+      const id = el.dataset.todayEdit;
+      const text = el.textContent.replace(/\s+/g, ' ').trim().slice(0, 300);
+      const cur = getDay(state.todayDate).items.find((i) => i.id === id);
+      if (!cur || cur.text === text) { if (cur && !text) el.textContent = cur.text; return; }
+      if (!text) { todayItems((items) => items.filter((i) => i.id !== id)); return; }
+      const date = state.todayDate;
+      const day = getDay(date);
+      saveDay(date, { items: day.items.map((i) => (i.id === id ? { ...i, text } : i)), memo: day.memo }, { rerender: false });
+    }
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' && e.target.dataset?.todayEdit) { e.preventDefault(); e.target.blur(); }
+  });
+  document.addEventListener('paste', (e) => {
+    if (!e.target.dataset?.todayEdit) return;
+    e.preventDefault();
+    document.execCommand('insertText', false, (e.clipboardData.getData('text/plain') || '').replace(/\s+/g, ' '));
+  });
+  document.addEventListener('toggle', (e) => {
+    if (e.target.id === 'td-done') state.todayDoneOpen = e.target.open;
+  }, true);
+}
+
+/* ───────────────────────── 메모 (폴더 · 태그 · 고정 · 검색) ───────────────────────── */
+// 데이터: settings.notes = [{ id, title, body, folder, tags[], pinned, createdAt, updatedAt }], settings.noteFolders = [이름...]
+const NOTE_DEFAULT_FOLDERS = ['일반', '업무', '개인'];
+const getNotes = () => (Array.isArray(state.settings.notes) ? state.settings.notes : []);
+const getNoteFolders = () => (Array.isArray(state.settings.noteFolders) && state.settings.noteFolders.length ? state.settings.noteFolders : NOTE_DEFAULT_FOLDERS);
+const findNote = (id) => getNotes().find((n) => n.id === id);
+
+async function saveNoteData(patch, { rerender = true } = {}) {
+  state.settings = { ...state.settings, ...patch };
+  if (rerender) render();
+  try { await store.saveSettings({ ...state.settings }); } catch (err) { handleError(err); }
+}
+const setNotes = (notes, opt) => saveNoteData({ notes }, opt);
+function patchNote(id, patch, opt) {
+  return setNotes(getNotes().map((n) => (n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n)), opt);
+}
+const parseTags = (s) => [...new Set(String(s || '').split(/[\s,]+/).map((t) => t.replace(/^#+/, '').trim()).filter(Boolean))].slice(0, 12);
+const fmtNoteTime = (ts) => {
+  const d = new Date(ts || Date.now());
+  return `${d.getFullYear()}.${p2(d.getMonth() + 1)}.${p2(d.getDate())} ${p2(d.getHours())}:${p2(d.getMinutes())}`;
+};
+const noteSort = (a, b) => (b.pinned ? 1 : 0) - (a.pinned ? 1 : 0) || (b.updatedAt || 0) - (a.updatedAt || 0);
+
+function visibleNotes() {
+  const q = state.noteQuery.trim().toLowerCase();
+  return getNotes()
+    .filter((n) => !state.noteFolder || n.folder === state.noteFolder)
+    .filter((n) => !state.noteTag || (n.tags || []).includes(state.noteTag))
+    .filter((n) => !q || `${n.title}\n${n.body}\n${(n.tags || []).join(' ')}`.toLowerCase().includes(q))
+    .sort(noteSort);
+}
+function noteItemHtml(n) {
+  const preview = String(n.body || '').replace(/\s+/g, ' ').trim().slice(0, 90);
+  return `<button type="button" class="nt-item ${n.id === state.noteId ? 'active' : ''}" data-nt="select" data-id="${esc(n.id)}">
+    <span class="nt-item-top">${n.pinned ? '<span class="nt-pin" title="고정됨">📌</span>' : ''}<strong class="nt-title">${esc(n.title || '제목 없음')}</strong></span>
+    <span class="nt-preview">${esc(preview) || '<em>내용 없음</em>'}</span>
+    <span class="nt-item-meta"><span class="chip-sm">${esc(n.folder)}</span>${(n.tags || []).slice(0, 3).map((t) => `<span class="nt-tag">#${esc(t)}</span>`).join('')}<time>${fmtNoteTime(n.updatedAt).slice(5, 10)}</time></span>
+  </button>`;
+}
+function noteListHtml() {
+  const list = visibleNotes();
+  if (list.length) return list.map(noteItemHtml).join('');
+  return `<p class="muted td-empty">${state.noteQuery || state.noteTag || state.noteFolder ? '조건에 맞는 메모가 없어요.' : '아직 메모가 없어요. “새 메모”를 눌러 시작하세요.'}</p>`;
+}
+function noteEditorHtml() {
+  const n = findNote(state.noteId);
+  if (!n) return '<div class="nt-empty muted">왼쪽에서 메모를 고르거나<br>“새 메모”를 눌러 작성하세요.</div>';
+  return `<div class="nt-toolbar">
+      <button type="button" class="btn btn-ghost nt-back" data-nt="back">‹ 목록</button>
+      <select class="input nt-folder-select" id="nt-folder-select" aria-label="폴더">${getNoteFolders().map((f) => `<option ${f === n.folder ? 'selected' : ''}>${esc(f)}</option>`).join('')}${getNoteFolders().includes(n.folder) ? '' : `<option selected>${esc(n.folder)}</option>`}</select>
+      <button type="button" class="btn btn-ghost" data-nt="pin" data-id="${esc(n.id)}">${n.pinned ? '📌 고정 해제' : '📍 상단 고정'}</button>
+      <button type="button" class="btn btn-ghost nt-danger" data-nt="delete" data-id="${esc(n.id)}">🗑 삭제</button>
+    </div>
+    <input class="input nt-title-input" id="nt-title" maxlength="200" placeholder="제목" value="${esc(n.title)}" autocomplete="off">
+    <input class="input nt-tags-input" id="nt-tags" placeholder="태그 (예: 회의 행사 #연수)  — 띄어쓰기로 구분" value="${esc((n.tags || []).map((t) => '#' + t).join(' '))}" autocomplete="off">
+    <textarea class="input nt-body" id="nt-body" placeholder="내용을 적어 보세요. 자동으로 저장돼요.">${esc(n.body)}</textarea>
+    <p class="muted sm nt-meta">만든 날 ${fmtNoteTime(n.createdAt)} · 수정 ${fmtNoteTime(n.updatedAt)}</p>`;
+}
+function noteSideHtml() {
+  const notes = getNotes();
+  const folders = getNoteFolders();
+  const tagCount = new Map();
+  notes.forEach((n) => (n.tags || []).forEach((t) => tagCount.set(t, (tagCount.get(t) || 0) + 1)));
+  const tags = [...tagCount.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+  return `<p class="nt-label">폴더</p>
+    <button type="button" class="nt-folder ${state.noteFolder === '' ? 'active' : ''}" data-nt="folder" data-name="">전체 <b>${notes.length}</b></button>
+    ${folders.map((f) => `<span class="nt-folder-row"><button type="button" class="nt-folder ${state.noteFolder === f ? 'active' : ''}" data-nt="folder" data-name="${esc(f)}">${esc(f)} <b>${notes.filter((n) => n.folder === f).length}</b></button><button type="button" class="icon-btn sm nt-folder-del" data-nt="folder-del" data-name="${esc(f)}" aria-label="${esc(f)} 폴더 삭제">✕</button></span>`).join('')}
+    <form id="nt-folder-form" class="nt-folder-form" autocomplete="off"><input class="input" id="nt-folder-input" maxlength="20" placeholder="새 폴더" aria-label="새 폴더 이름"><button class="btn btn-ghost" type="submit">＋</button></form>
+    ${tags.length ? `<p class="nt-label">태그</p><div class="nt-tags">${tags.map(([t, c]) => `<button type="button" class="chip ${state.noteTag === t ? 'active' : ''}" data-nt="tag" data-name="${esc(t)}">#${esc(t)} ${c}</button>`).join('')}</div>` : ''}`;
+}
+function viewNotes() {
+  return `<header class="page-head"><div class="ph-icon">📒</div><div class="ph-text"><h1>메모</h1><p>폴더와 태그로 정리하고, 중요한 메모는 상단에 고정하세요.</p></div></header>
+  <div class="nt-wrap ${state.noteMobileEdit && state.noteId ? 'nt-edit-open' : ''}">
+    <aside class="card nt-side" id="nt-side">${noteSideHtml()}</aside>
+    <section class="card nt-listpane">
+      <div class="nt-list-head"><input type="search" class="input" id="nt-search" value="${esc(state.noteQuery)}" placeholder="제목·내용·태그 검색" autocomplete="off"><button type="button" class="btn btn-primary" data-nt="new">＋ 새 메모</button></div>
+      <div class="nt-list" id="nt-list">${noteListHtml()}</div>
+    </section>
+    <section class="card nt-editor" id="nt-editor">${noteEditorHtml()}</section>
+  </div>`;
+}
+
+let noteTimer = null;
+function flushNote() {
+  if (!noteTimer) return;
+  clearTimeout(noteTimer);
+  noteTimer = null;
+  saveNoteData({}, { rerender: false });
+}
+function dropEmptyNote() {
+  const n = findNote(state.noteId);
+  if (n && !n.title.trim() && !n.body.trim() && !(n.tags || []).length) {
+    setNotes(getNotes().filter((x) => x.id !== n.id), { rerender: false });
+  }
+}
+function selectNote(id, mobile = true) {
+  flushNote();
+  if (state.noteId !== id) dropEmptyNote();
+  state.noteId = id;
+  state.noteMobileEdit = mobile && !!id;
+  render();
+}
+function newNote() {
+  flushNote();
+  dropEmptyNote();
+  const folders = getNoteFolders();
+  const now = Date.now();
+  const n = { id: crypto.randomUUID(), title: '', body: '', folder: state.noteFolder || folders[0], tags: state.noteTag ? [state.noteTag] : [], pinned: false, createdAt: now, updatedAt: now };
+  state.noteId = n.id;
+  state.noteMobileEdit = true;
+  state.noteQuery = '';
+  setNotes([...getNotes(), n]);
+  $('#nt-title')?.focus();
+}
+function touchNote(id, patch) {
+  state.settings = { ...state.settings, notes: getNotes().map((n) => (n.id === id ? { ...n, ...patch, updatedAt: Date.now() } : n)) };
+  clearTimeout(noteTimer);
+  noteTimer = setTimeout(flushNote, 700);
+}
+
+function bindNoteEvents() {
+  document.addEventListener('click', async (e) => {
+    const t = e.target.closest('[data-nt]');
+    if (!t) return;
+    const { id, name } = t.dataset;
+    switch (t.dataset.nt) {
+      case 'new': newNote(); break;
+      case 'select': selectNote(id); break;
+      case 'back': flushNote(); state.noteMobileEdit = false; render(); break;
+      case 'pin': { const n = findNote(id); if (n) patchNote(id, { pinned: !n.pinned }); break; }
+      case 'delete':
+        if (await confirmDialog('메모 삭제', '이 메모를 삭제할까요? 되돌릴 수 없어요.')) {
+          clearTimeout(noteTimer); noteTimer = null;
+          state.noteId = ''; state.noteMobileEdit = false;
+          setNotes(getNotes().filter((n) => n.id !== id));
+          toast('메모를 삭제했어요.');
+        }
+        break;
+      case 'folder': state.noteFolder = name; render(); break;
+      case 'tag': state.noteTag = state.noteTag === name ? '' : name; render(); break;
+      case 'folder-del': {
+        if (getNoteFolders().length <= 1) { toast('폴더는 최소 1개가 필요해요.', 'error'); break; }
+        if (getNotes().some((n) => n.folder === name)) { toast('메모가 들어 있는 폴더는 지울 수 없어요. 메모를 다른 폴더로 옮긴 뒤 지워 주세요.', 'error'); break; }
+        if (state.noteFolder === name) state.noteFolder = '';
+        saveNoteData({ noteFolders: getNoteFolders().filter((f) => f !== name) });
+        break;
+      }
+    }
+  });
+  document.addEventListener('submit', (e) => {
+    if (e.target.id !== 'nt-folder-form') return;
+    e.preventDefault();
+    const name = $('#nt-folder-input').value.trim();
+    if (!name) return;
+    if (getNoteFolders().includes(name)) { toast('이미 있는 폴더예요.', 'error'); return; }
+    saveNoteData({ noteFolders: [...getNoteFolders(), name] });
+  });
+  document.addEventListener('input', (e) => {
+    const el = e.target;
+    if (el.id === 'nt-search') {
+      state.noteQuery = el.value;
+      $('#nt-list').innerHTML = noteListHtml();
+    } else if (el.id === 'nt-title' || el.id === 'nt-body' || el.id === 'nt-tags') {
+      const id = state.noteId;
+      if (!findNote(id)) return;
+      const patch = el.id === 'nt-title' ? { title: el.value } : el.id === 'nt-body' ? { body: el.value } : { tags: parseTags(el.value) };
+      touchNote(id, patch);
+      const item = $(`.nt-item[data-id="${CSS.escape(id)}"]`);
+      if (item) { const n = findNote(id); item.outerHTML = noteItemHtml(n); }
+    }
+  });
+  document.addEventListener('change', (e) => {
+    if (e.target.id === 'nt-folder-select' && findNote(state.noteId)) patchNote(state.noteId, { folder: e.target.value });
+  });
+  document.addEventListener('focusout', (e) => {
+    if (['nt-title', 'nt-body', 'nt-tags'].includes(e.target.id)) flushNote();
+  });
 }
 
 /* ───────────────────────── 내 웹앱 (외부 링크) ───────────────────────── */
@@ -241,6 +702,8 @@ function render() {
   if (!state.loaded) { v.innerHTML = skeleton(); return; }
   const html = {
     dashboard: viewDashboard,
+    today: viewToday,
+    notes: viewNotes,
     timeline: viewTimeline,
     challenges: viewChallenges,
     category: () => viewCategory(cat),
@@ -250,6 +713,7 @@ function render() {
   }[view]();
   v.innerHTML = `<div class="view-inner">${html}</div>`;
   if (view === 'dashboard') runCountUps();
+  if (view === 'today') maybeLoadCalendar();
 }
 
 const skeleton = () =>
@@ -2079,6 +2543,8 @@ function resetFilters() {
 }
 
 function bindEvents() {
+  bindTodayEvents();
+  bindNoteEvents();
   window.addEventListener('hashchange', () => {
     state.route = parseHash();
     Object.assign(state, { filterYear: '', filterTag: '', filterCat: '' });
@@ -2130,7 +2596,7 @@ function bindEvents() {
           !/^(button|checkbox|radio|submit|reset|file|image|range|color)$/i.test(t.type)));
       if (!editable) e.preventDefault();
     }
-    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName);
+    const typing = /INPUT|TEXTAREA|SELECT/.test(document.activeElement?.tagName) || document.activeElement?.isContentEditable;
     if (e.key === '/' && !typing && state.user) { e.preventDefault(); $('#search').focus(); }
     if (e.key === 'Enter' && document.activeElement?.matches('.record-card, .tl-card')) document.activeElement.click();
   });
@@ -2197,6 +2663,24 @@ function bindEvents() {
         catch (err) { handleError(err); }
         break;
       }
+      case 'today-prev': gotoDate(shiftDate(state.todayDate, -1)); break;
+      case 'today-next': gotoDate(shiftDate(state.todayDate, 1)); break;
+      case 'today-now': gotoDate(todayStr()); break;
+      case 'today-goto': gotoDate(t.dataset.date); break;
+      case 'today-delete': todayItems((items) => items.filter((i) => i.id !== id)); break;
+      case 'today-carry': {
+        const prev = Object.keys(getDaily()).filter((d) => d < state.todayDate && getDay(d).items.some((i) => !i.done)).sort().pop();
+        if (!prev) { toast('가져올 미완료 항목이 없어요.'); break; }
+        const have = new Set(getDay(state.todayDate).items.map((i) => i.text));
+        const more = getDay(prev).items.filter((i) => !i.done && !have.has(i.text)).map((i) => ({ id: crypto.randomUUID(), text: i.text, done: false }));
+        if (!more.length) { toast('이미 모두 가져왔어요.'); break; }
+        todayItems((items) => [...items, ...more]);
+        toast(`${dateLabel(prev)}의 미완료 ${more.length}개를 가져왔어요.`);
+        break;
+      }
+      case 'cal-connect': connectCalendar(); break;
+      case 'cal-refresh': maybeLoadCalendar(true); break;
+      case 'cal-off': store.cal.disconnect(); localStorage.removeItem('careernote.cal'); state.cal = { status: 'idle', date: '', events: [], msg: '', help: '' }; paintCal(); break;
       case 'delete-app': { const l = loadApps(); l.splice(Number(t.dataset.idx), 1); saveApps(l); render(); break; }
       case 'print': window.print(); break;
       case 'rcat-all': state.resume.cats = CATEGORIES.map((c) => c.id); render(); break;
