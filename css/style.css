@@ -1270,3 +1270,5 @@ button.hir-icon-btn:hover, button.hir-icon-btn:focus-visible { border-color: var
 .td-cal-err { margin: 4px 0 8px; color: #f87171; font-size: 14px; }
 .td-cal-row { text-decoration: none; }
 .td-cal-sub { display: block; margin-top: 2px; font-size: 12px; color: var(--muted); }
+
+.td-allclear { margin: 10px 0 0; }

@@ -364,8 +364,8 @@ function viewToday() {
       ${date !== todayStr() ? '<button type="button" class="btn btn-ghost" data-action="today-now">오늘로</button>' : '<span class="chip-sm">오늘</span>'}
     </div>
     <form id="today-form" class="td-add" autocomplete="off"><label class="sr-only" for="today-input">할 일 추가</label><input class="input" type="text" id="today-input" maxlength="300" placeholder="할 일 추가…"><button class="btn btn-primary" type="submit">추가</button></form>
-    ${open.length ? `<ul class="td-list">${open.map(li).join('')}</ul>` : `<p class="muted td-empty">${day.items.length ? '모든 할 일을 마쳤어요 🎉' : '아직 할 일이 없어요. 위에서 추가해 보세요.'}</p>`}
-    ${done.length ? `<details class="td-done" id="td-done" ${state.todayDoneOpen ? 'open' : ''}><summary>완료된 항목 ${done.length}개</summary><ul class="td-list">${done.map(li).join('')}</ul></details>` : ''}
+    ${day.items.length ? `<ul class="td-list">${day.items.map(li).join('')}</ul>` : '<p class="muted td-empty">아직 할 일이 없어요. 위에서 추가해 보세요.</p>'}
+    ${day.items.length && !open.length ? '<p class="muted sm td-allclear">모든 할 일을 마쳤어요 🎉</p>' : ''}
     <div class="td-tools"><button type="button" class="btn btn-ghost" data-action="today-carry">↩ 지난 미완료 항목 가져오기</button></div>
   </section>
   <section class="card td-panel">
