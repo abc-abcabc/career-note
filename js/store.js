@@ -46,6 +46,11 @@ export async function createFirebaseStore(config) {
     add: (data) => F.addDoc(recCol(), { ...data, createdAt: F.serverTimestamp(), updatedAt: F.serverTimestamp() }),
     update: (id, data) => F.updateDoc(F.doc(recCol(), id), { ...data, updatedAt: F.serverTimestamp() }),
     remove: (id) => F.deleteDoc(F.doc(recCol(), id)),
+    // 전담시간표 앱(noam-timetable)이 저장하는 문서를 읽기 전용으로 가져옵니다.
+    async getTimetable() {
+      const s = await F.getDoc(F.doc(db, 'timetables', '2026_noam_2nd_semester'));
+      return s.exists() ? s.data() : null;
+    },
     saveSettings: (settings) =>
       F.setDoc(F.doc(db, 'users', uid), { settings, updatedAt: F.serverTimestamp() }, { merge: true }),
     cal: {
@@ -113,6 +118,7 @@ export function createDemoStore(sample) {
 
   return {
     mode: 'demo',
+    getTimetable: async () => null,
     onAuth(cb) {
       setTimeout(() => cb({ uid: 'demo', name: '데모 사용자', email: 'demo@example.com', photo: '' }), 0);
       return () => {};

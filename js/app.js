@@ -111,6 +111,7 @@ function onLogin(user) {
   showScreen('app');
   renderUser();
   render();
+  loadTimetable();
   unsubscribe?.();
   unsubscribe = store.subscribe(
     (records) => {
@@ -725,6 +726,49 @@ function sortConfirmed(list) {
 const catPill = (c) => `<span class="cat-pill" style="--c:${c.color}">${c.icon} ${c.name}</span>`;
 
 /* ───────────────────────── 대시보드 ───────────────────────── */
+/* ───────────────────────── 오늘 수업 (전담시간표 연동, 읽기 전용) ───────────────────────── */
+const TIMETABLE_URL = 'https://noam-timetable.vercel.app/';
+async function loadTimetable() {
+  state.timetable = undefined; // undefined: 불러오는 중, null: 없음/실패
+  try { state.timetable = (await store.getTimetable?.()) || null; } catch (e) { console.warn('시간표 불러오기 실패', e); state.timetable = null; }
+  if (state.route.view === 'dashboard') render();
+}
+function todayClasses() {
+  const t = state.timetable;
+  if (!t) return null;
+  const d = new Date();
+  const pad = (n) => String(n).padStart(2, '0');
+  const ds = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const dow = d.getDay(); // 0=일
+  if (dow === 0 || dow === 6) return { ds, off: '주말' };
+  const holiday = String(t.holidays || '').split('\n').map((l) => l.trim()).find((l) => l.startsWith(ds));
+  const ov = t.manualOverrides?.[ds];
+  if (holiday && !ov?.slots) return { ds, off: holiday.split(':').slice(1).join(':').trim() || '휴일' };
+  if (t.classStartDate && ds < t.classStartDate) return { ds, off: '수업 시작 전' };
+  if (t.endDate && ds > t.endDate) return { ds, off: '학기 종료' };
+  let slots;
+  if (ov?.slots) {
+    slots = ov.slots.filter((s) => s.text).map((s) => ({ period: s.period, text: s.text, cancelled: !!s.isStrike }));
+  } else {
+    slots = (t.baseGrid || {});
+    slots = Object.keys(slots).map((r) => ({ period: Number(r) + 1, text: (slots[r] || [])[dow - 1] || '' })).filter((s) => s.text.trim());
+  }
+  return { ds, slots, note: ov?.note || '' };
+}
+function timetableCard() {
+  const link = `<a class="link sm" href="${TIMETABLE_URL}" target="_blank" rel="noopener noreferrer">시간표 열기 ↗</a>`;
+  const tc = state.timetable === undefined ? undefined : todayClasses();
+  let body;
+  if (tc === undefined) body = '<p class="muted sm">시간표를 불러오는 중…</p>';
+  else if (tc === null) body = '<p class="muted sm">시간표를 불러오지 못했어요. (데모 모드이거나 읽기 권한이 없을 수 있어요)</p>';
+  else if (tc.off) body = `<p class="muted">오늘은 수업이 없어요 · ${esc(tc.off)}</p>`;
+  else if (!tc.slots.length) body = '<p class="muted">오늘은 배정된 수업이 없어요.</p>';
+  else body = `<ul class="stack" style="list-style:none;padding:0;margin:0">${tc.slots.map((s) => `
+    <li style="display:flex;gap:10px;${s.cancelled ? 'text-decoration:line-through;opacity:.5' : ''}"><b>${s.period}교시</b><span>${esc(s.text)}${s.cancelled ? ' (결강)' : ''}</span></li>`).join('')}</ul>
+    ${tc.note ? `<p class="muted sm">📝 ${esc(tc.note)}</p>` : ''}`;
+  return `<section class="card" style="margin-bottom:16px"><header class="card-head"><h2>🏫 오늘 수업</h2>${link}</header>${body}</section>`;
+}
+
 function viewDashboard() {
   const R = state.records;
   const s = state.settings;
@@ -764,6 +808,8 @@ function viewDashboard() {
     </div>
     <button class="btn btn-primary btn-lg" data-action="add">＋ 새 이력 기록</button>
   </section>
+
+  ${timetableCard()}
 
   <section class="stats">
     ${stat('📁', '전체 이력', R.length, '건', '#a78bfa')}
