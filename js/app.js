@@ -158,13 +158,69 @@ function viewChallenges() {
   const items = (Array.isArray(state.settings.challenges) ? state.settings.challenges : [])
     .filter((item) => Number(item.year) === year);
   const done = items.filter((item) => item.done).length;
-  return `<header class="page-head"><div class="ph-icon">🎯</div><div class="ph-text"><h1>도전</h1><p>연도별로 이루고 싶은 목표를 기록하고 완료 여부를 관리하세요.</p></div></header>
-    <section class="card challenge-panel">
-      <div class="challenge-heading"><h2>${year}년 도전 <span class="muted sm">${done}/${items.length} 완료</span></h2>
-        <div class="challenge-years"><button class="icon-btn sm" data-action="challenge-prev" aria-label="이전 연도">‹</button><strong>${year}년</strong><button class="icon-btn sm" data-action="challenge-next" aria-label="다음 연도">›</button></div></div>
-      <form id="challenge-form" class="challenge-form"><label class="sr-only" for="challenge-title">성취하고 싶은 내용</label><input class="input" id="challenge-title" name="title" maxlength="300" required placeholder="${year}년에 성취하고 싶은 내용을 입력하세요"><button class="btn btn-primary" type="submit">추가</button></form>
-      ${items.length ? `<ul class="challenge-list">${items.map((item) => `<li class="${item.done ? 'done' : ''}"><label><input type="checkbox" data-challenge-toggle="${esc(item.id)}" ${item.done ? 'checked' : ''}><span>${esc(item.title)}</span></label><button class="icon-btn sm danger" data-action="challenge-delete" data-id="${esc(item.id)}" aria-label="도전 삭제">🗑</button></li>`).join('')}</ul>` : '<p class="muted challenge-empty">아직 등록한 도전이 없어요. 올해 이루고 싶은 일을 추가해 보세요.</p>'}
-    </section>`;
+  const pct = items.length ? Math.round((done / items.length) * 100) : 0;
+  const R = 52, C = 2 * Math.PI * R;
+  const fmt = (ts) => { const d = new Date(ts); return `${d.getFullYear()}.${String(d.getMonth() + 1).padStart(2, '0')}.${String(d.getDate()).padStart(2, '0')}`; };
+  const card = (item, n) => `<article class="ch-card ${item.done ? 'is-done' : ''} ${state.justDone === item.id ? 'just-done' : ''}" data-ch="${esc(item.id)}">
+      <div class="ch-top"><span class="ch-no">GOAL ${String(n).padStart(2, '0')}</span><button class="icon-btn sm ch-del" data-action="challenge-delete" data-id="${esc(item.id)}" aria-label="도전 삭제" title="삭제">🗑</button></div>
+      <div class="ch-emoji" aria-hidden="true">${item.done ? '🏆' : '🎯'}</div>
+      <h3 class="ch-title">${esc(item.title)}</h3>
+      ${item.done
+        ? `<div class="ch-badge">✨ 달성${item.doneAt ? ` · ${fmt(item.doneAt)}` : ''}</div><button class="ch-undo" data-action="challenge-undo" data-id="${esc(item.id)}">되돌리기</button>`
+        : `<button class="ch-achieve" data-action="challenge-done" data-id="${esc(item.id)}">🎉 달성했어요!</button>`}
+    </article>`;
+  return `<header class="page-head"><div class="ph-icon">🎯</div><div class="ph-text"><h1>도전</h1><p>올해 꼭 이루고 싶은 큰 목표들. 하나씩 이룰 때마다 축하해요.</p></div></header>
+    <section class="card ch-hero ${items.length && done === items.length ? 'all-done' : ''}">
+      <div class="ch-ring" role="img" aria-label="${items.length}개 중 ${done}개 달성">
+        <svg viewBox="0 0 120 120"><defs><linearGradient id="chg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#f472b6"/></linearGradient></defs>
+          <circle cx="60" cy="60" r="${R}" class="ch-ring-bg"/><circle cx="60" cy="60" r="${R}" class="ch-ring-fg" stroke-dasharray="${C.toFixed(1)}" stroke-dashoffset="${(C * (1 - pct / 100)).toFixed(1)}"/></svg>
+        <div class="ch-ring-txt"><b>${pct}%</b><span>${done}/${items.length}</span></div>
+      </div>
+      <div class="ch-hero-body">
+        <div class="ch-years"><button class="icon-btn sm" data-action="challenge-prev" aria-label="이전 연도">‹</button><strong>${year}년 도전</strong><button class="icon-btn sm" data-action="challenge-next" aria-label="다음 연도">›</button></div>
+        <p class="ch-hero-msg">${!items.length ? '이루고 싶은 큰 목표를 적어 보세요.' : done === items.length ? `🎊 ${year}년 도전을 모두 이뤘어요! 정말 대단해요.` : done ? `벌써 ${done}개를 이뤘어요. 남은 ${items.length - done}개도 응원해요!` : `${items.length}개의 목표가 기다리고 있어요.`}</p>
+        <form id="challenge-form" class="challenge-form"><label class="sr-only" for="challenge-title">성취하고 싶은 내용</label><input class="input" id="challenge-title" name="title" maxlength="300" required placeholder="${year}년에 이루고 싶은 큰 목표"><button class="btn btn-primary" type="submit">추가</button></form>
+      </div>
+    </section>
+    ${items.length ? `<div class="ch-grid">${items.map((it, k) => card(it, k + 1)).join('')}</div>` : ''}`;
+}
+
+/* 달성 축하 효과 (색종이) */
+function celebrate(fromEl) {
+  if (window.matchMedia?.('(prefers-reduced-motion: reduce)').matches) return;
+  const r = fromEl?.getBoundingClientRect();
+  const x = r ? r.left + r.width / 2 : innerWidth / 2;
+  const y = r ? r.top + r.height / 2 : innerHeight / 3;
+  const colors = ['#fbbf24', '#f472b6', '#60a5fa', '#34d399', '#a78bfa', '#fb923c', '#f87171'];
+  const wrap = document.createElement('div');
+  wrap.className = 'confetti';
+  for (let k = 0; k < 110; k++) {
+    const p = document.createElement('i');
+    const ang = Math.random() * Math.PI * 2;
+    const dist = 90 + Math.random() * 280;
+    const w = 6 + Math.random() * 6;
+    p.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${w * (Math.random() < .5 ? .45 : 1)}px;background:${colors[k % colors.length]};border-radius:${Math.random() < .3 ? '50%' : '2px'};--dx:${(Math.cos(ang) * dist).toFixed(0)}px;--dy:${(Math.sin(ang) * dist - 160).toFixed(0)}px;--r:${(Math.random() * 900 - 450).toFixed(0)}deg;--t:${(1.1 + Math.random() * .9).toFixed(2)}s`;
+    wrap.appendChild(p);
+  }
+  document.body.appendChild(wrap);
+  setTimeout(() => wrap.remove(), 2300);
+}
+const CHEERS = ['멋져요! 큰 목표 하나를 이뤘어요 🎉', '해냈어요! 정말 축하해요 🏆', '대단해요! 한 걸음 더 성장했어요 ✨', '축하해요! 스스로를 칭찬해 주세요 🎊'];
+async function setChallengeDone(id, done, fromEl) {
+  const items = Array.isArray(state.settings.challenges) ? state.settings.challenges : [];
+  const next = items.map((item) => (item.id === id ? { ...item, done, doneAt: done ? Date.now() : null } : item));
+  if (done) { celebrate(fromEl); state.justDone = id; }
+  state.settings = { ...state.settings, challenges: next };
+  render();
+  if (done) {
+    const year = state.challengeYear;
+    const yearItems = next.filter((it) => Number(it.year) === year);
+    const all = yearItems.length > 1 && yearItems.every((it) => it.done);
+    toast(all ? `🎊 ${year}년 도전을 모두 이뤘어요! 정말 대단해요!` : CHEERS[Math.floor(Math.random() * CHEERS.length)]);
+    if (all) setTimeout(() => celebrate(null), 450);
+    setTimeout(() => { if (state.justDone === id) state.justDone = null; }, 1200);
+  }
+  try { await store.saveSettings({ ...state.settings, challenges: next }); } catch (err) { handleError(err); }
 }
 
 async function saveChallenges(items) {
@@ -2471,7 +2527,11 @@ function bindEvents() {
       case 'goal-next': state.goalYear++; render(); break;
       case 'challenge-prev': state.challengeYear--; render(); break;
       case 'challenge-next': state.challengeYear++; render(); break;
+      case 'challenge-done': setChallengeDone(id, true, t.closest('.ch-card')); break;
+      case 'challenge-undo': setChallengeDone(id, false); break;
       case 'challenge-delete': {
+        const target = (Array.isArray(state.settings.challenges) ? state.settings.challenges : []).find((item) => item.id === id);
+        if (target && !(await confirmDialog('도전 삭제', `"${target.title}" 목표를 삭제할까요?`))) break;
         const items = Array.isArray(state.settings.challenges) ? state.settings.challenges : [];
         try { await saveChallenges(items.filter((item) => item.id !== id)); toast('도전을 삭제했어요.'); }
         catch (err) { handleError(err); }
