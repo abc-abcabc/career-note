@@ -764,7 +764,7 @@ function timetableCard(ds = todayStr()) {
   else body = `<ul class="stack" style="list-style:none;padding:0;margin:0">${tc.slots.map((s) => `
     <li style="display:flex;gap:10px;${s.cancelled ? 'text-decoration:line-through;opacity:.5' : ''}"><b>${s.period}교시</b><span>${esc(s.text)}${s.cancelled ? ' (결강)' : ''}</span></li>`).join('')}</ul>
     ${tc.note ? `<p class="muted sm">📝 ${esc(tc.note)}</p>` : ''}`;
-  return `<section class="card" style="margin-bottom:16px"><header class="card-head"><h2>🏫 ${ds === todayStr() ? '오늘' : dateLabel(ds)} 수업</h2>${link}</header>${body}</section>`;
+  return `<section class="card td-panel"><header class="card-head"><h2>🏫 ${ds === todayStr() ? '오늘' : dateLabel(ds)} 수업</h2>${link}</header>${body}</section>`;
 }
 
 function viewDashboard() {
