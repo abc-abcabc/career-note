@@ -407,6 +407,7 @@ function viewToday() {
   const li = (i) => `<li class="td-item ${i.done ? 'done' : ''}"><input type="checkbox" class="td-check" data-today-toggle="${esc(i.id)}" ${i.done ? 'checked' : ''} aria-label="완료 표시"><span class="td-text" contenteditable="true" spellcheck="false" data-today-edit="${esc(i.id)}">${esc(i.text)}</span><button type="button" class="icon-btn sm danger td-del" data-action="today-delete" data-id="${esc(i.id)}" aria-label="삭제">✕</button></li>`;
   return `<header class="page-head"><div class="ph-icon">✅</div><div class="ph-text"><h1>Today</h1><p>오늘 할 일을 체크하고, 날짜별로 메모를 남겨 보세요.</p></div></header>
   ${todaySummaryHtml(date, day)}
+  ${timetableCard(date)}
   <section class="card td-panel">
     <div class="td-datebar">
       <button type="button" class="icon-btn sm" data-action="today-prev" aria-label="전날">‹</button>
@@ -731,15 +732,12 @@ const TIMETABLE_URL = 'https://noam-timetable.vercel.app/';
 async function loadTimetable() {
   state.timetable = undefined; // undefined: 불러오는 중, null: 없음/실패
   try { state.timetable = (await store.getTimetable?.()) || null; } catch (e) { console.warn('시간표 불러오기 실패', e); state.timetable = null; }
-  if (state.route.view === 'dashboard') render();
+  if (state.route.view === 'today' && !todayTyping()) render();
 }
-function todayClasses() {
+function todayClasses(ds) {
   const t = state.timetable;
   if (!t) return null;
-  const d = new Date();
-  const pad = (n) => String(n).padStart(2, '0');
-  const ds = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-  const dow = d.getDay(); // 0=일
+  const dow = new Date(`${ds}T00:00:00`).getDay(); // 0=일
   if (dow === 0 || dow === 6) return { ds, off: '주말' };
   const holiday = String(t.holidays || '').split('\n').map((l) => l.trim()).find((l) => l.startsWith(ds));
   const ov = t.manualOverrides?.[ds];
@@ -755,18 +753,18 @@ function todayClasses() {
   }
   return { ds, slots, note: ov?.note || '' };
 }
-function timetableCard() {
+function timetableCard(ds = todayStr()) {
   const link = `<a class="link sm" href="${TIMETABLE_URL}" target="_blank" rel="noopener noreferrer">시간표 열기 ↗</a>`;
-  const tc = state.timetable === undefined ? undefined : todayClasses();
+  const tc = state.timetable === undefined ? undefined : todayClasses(ds);
   let body;
   if (tc === undefined) body = '<p class="muted sm">시간표를 불러오는 중…</p>';
   else if (tc === null) body = '<p class="muted sm">시간표를 불러오지 못했어요. (데모 모드이거나 읽기 권한이 없을 수 있어요)</p>';
-  else if (tc.off) body = `<p class="muted">오늘은 수업이 없어요 · ${esc(tc.off)}</p>`;
-  else if (!tc.slots.length) body = '<p class="muted">오늘은 배정된 수업이 없어요.</p>';
+  else if (tc.off) body = `<p class="muted">수업이 없어요 · ${esc(tc.off)}</p>`;
+  else if (!tc.slots.length) body = '<p class="muted">배정된 수업이 없어요.</p>';
   else body = `<ul class="stack" style="list-style:none;padding:0;margin:0">${tc.slots.map((s) => `
     <li style="display:flex;gap:10px;${s.cancelled ? 'text-decoration:line-through;opacity:.5' : ''}"><b>${s.period}교시</b><span>${esc(s.text)}${s.cancelled ? ' (결강)' : ''}</span></li>`).join('')}</ul>
     ${tc.note ? `<p class="muted sm">📝 ${esc(tc.note)}</p>` : ''}`;
-  return `<section class="card" style="margin-bottom:16px"><header class="card-head"><h2>🏫 오늘 수업</h2>${link}</header>${body}</section>`;
+  return `<section class="card" style="margin-bottom:16px"><header class="card-head"><h2>🏫 ${ds === todayStr() ? '오늘' : dateLabel(ds)} 수업</h2>${link}</header>${body}</section>`;
 }
 
 function viewDashboard() {
@@ -808,8 +806,6 @@ function viewDashboard() {
     </div>
     <button class="btn btn-primary btn-lg" data-action="add">＋ 새 이력 기록</button>
   </section>
-
-  ${timetableCard()}
 
   <section class="stats">
     ${stat('📁', '전체 이력', R.length, '건', '#a78bfa')}
