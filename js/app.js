@@ -169,7 +169,7 @@ function viewChallenges() {
         ? `<div class="ch-badge">✨ 달성${item.doneAt ? ` · ${fmt(item.doneAt)}` : ''}</div><button class="ch-undo" data-action="challenge-undo" data-id="${esc(item.id)}">되돌리기</button>`
         : `<button class="ch-achieve" data-action="challenge-done" data-id="${esc(item.id)}">🎉 달성했어요!</button>`}
     </article>`;
-  return `<header class="page-head"><div class="ph-icon">🎯</div><div class="ph-text"><h1>도전</h1><p>올해 꼭 이루고 싶은 큰 목표들. 하나씩 이룰 때마다 축하해요.</p></div></header>
+  return `<header class="page-head"><div class="ph-icon">🎯</div><div class="ph-text"><h1>도전</h1><p>올해의 목표. 하나씩 이룰 때마다 축하해요.</p></div></header>
     <section class="card ch-hero ${items.length && done === items.length ? 'all-done' : ''}">
       <div class="ch-ring" role="img" aria-label="${items.length}개 중 ${done}개 달성">
         <svg viewBox="0 0 120 120"><defs><linearGradient id="chg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#fbbf24"/><stop offset="1" stop-color="#f472b6"/></linearGradient></defs>
@@ -178,8 +178,8 @@ function viewChallenges() {
       </div>
       <div class="ch-hero-body">
         <div class="ch-years"><button class="icon-btn sm" data-action="challenge-prev" aria-label="이전 연도">‹</button><strong>${year}년 도전</strong><button class="icon-btn sm" data-action="challenge-next" aria-label="다음 연도">›</button></div>
-        <p class="ch-hero-msg">${!items.length ? '이루고 싶은 큰 목표를 적어 보세요.' : done === items.length ? `🎊 ${year}년 도전을 모두 이뤘어요! 정말 대단해요.` : done ? `벌써 ${done}개를 이뤘어요. 남은 ${items.length - done}개도 응원해요!` : `${items.length}개의 목표가 기다리고 있어요.`}</p>
-        <form id="challenge-form" class="challenge-form"><label class="sr-only" for="challenge-title">성취하고 싶은 내용</label><input class="input" id="challenge-title" name="title" maxlength="300" required placeholder="${year}년에 이루고 싶은 큰 목표"><button class="btn btn-primary" type="submit">추가</button></form>
+        <p class="ch-hero-msg">${!items.length ? '목표를 적어 보세요.' : done === items.length ? `🎊 ${year}년 도전을 모두 이뤘어요! 정말 대단해요.` : done ? `벌써 ${done}개를 이뤘어요. 남은 ${items.length - done}개도 응원해요!` : `${items.length}개의 목표가 기다리고 있어요.`}</p>
+        <form id="challenge-form" class="challenge-form"><label class="sr-only" for="challenge-title">성취하고 싶은 내용</label><input class="input" id="challenge-title" name="title" maxlength="300" required placeholder="${year}년에 이루고 싶은 목표"><button class="btn btn-primary" type="submit">추가</button></form>
       </div>
     </section>
     ${items.length ? `<div class="ch-grid">${items.map((it, k) => card(it, k + 1)).join('')}</div>` : ''}`;
@@ -205,7 +205,7 @@ function celebrate(fromEl) {
   document.body.appendChild(wrap);
   setTimeout(() => wrap.remove(), 2300);
 }
-const CHEERS = ['멋져요! 큰 목표 하나를 이뤘어요 🎉', '해냈어요! 정말 축하해요 🏆', '대단해요! 한 걸음 더 성장했어요 ✨', '축하해요! 스스로를 칭찬해 주세요 🎊'];
+const CHEERS = ['멋져요! 목표 하나를 이뤘어요 🎉', '해냈어요! 정말 축하해요 🏆', '대단해요! 한 걸음 더 성장했어요 ✨', '축하해요! 스스로를 칭찬해 주세요 🎊'];
 async function setChallengeDone(id, done, fromEl) {
   const items = Array.isArray(state.settings.challenges) ? state.settings.challenges : [];
   const next = items.map((item) => (item.id === id ? { ...item, done, doneAt: done ? Date.now() : null } : item));
