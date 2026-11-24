@@ -754,7 +754,7 @@ function todayClasses(ds) {
   return { ds, slots, note: ov?.note || '' };
 }
 function timetableCard(ds = todayStr()) {
-  const link = `<a class="link sm" href="${TIMETABLE_URL}" target="_blank" rel="noopener noreferrer">시간표 열기 ↗</a>`;
+  const link = `<a class="link sm" href="${TIMETABLE_URL}?date=${ds}#${ds}" target="_blank" rel="noopener noreferrer">시간표 열기 ↗</a>`;
   const tc = state.timetable === undefined ? undefined : todayClasses(ds);
   let body;
   if (tc === undefined) body = '<p class="muted sm">시간표를 불러오는 중…</p>';
