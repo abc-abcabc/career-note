@@ -1396,6 +1396,21 @@ function parseMinutes(str = '') {
   return Math.round(total);
 }
 
+/** 연수 시간 셀 → 시간(소수). "1시간 40분"→1.67, "1:40"→1.67, "90분"→1.5, "15"→15 (글자를 지워 "140"이 되는 오류 방지) */
+function parseTrainingHours(v) {
+  if (typeof v === 'number') return v;
+  const s = String(v ?? '').trim();
+  if (!s) return null;
+  const hm = s.match(/^(\d+):(\d{1,2})(?::\d{1,2})?$/);
+  if (hm) return Math.round((Number(hm[1]) + Number(hm[2]) / 60) * 100) / 100;
+  if (/[시분]|h|m/i.test(s)) {
+    const min = parseMinutes(s);
+    return min ? Math.round((min / 60) * 100) / 100 : null;
+  }
+  const n = parseFloat(s.replace(/[^0-9.]/g, ''));
+  return isNaN(n) ? null : n;
+}
+
 function fmtMinutes(min) {
   const t = Math.round(Number(min) || 0);
   if (!t) return '0분';
@@ -2408,7 +2423,7 @@ async function handleExcelFile(file) {
         startDate = endDate;
       }
 
-      const hoursRaw = hoursCol !== -1 ? parseFloat(String(row[hoursCol]).replace(/[^0-9.]/g, '')) : null;
+      const hoursRaw = hoursCol !== -1 ? parseTrainingHours(row[hoursCol]) : null;
       const creditsRaw = creditsCol !== -1 ? parseFloat(String(row[creditsCol]).replace(/[^0-9.]/g, '')) : null;
 
       results.push({
