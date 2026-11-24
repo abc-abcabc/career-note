@@ -1447,8 +1447,7 @@ function recTitle(r) {
 function recordCard(r) {
   const c = CATEGORY_MAP[r.category];
   if (!c) return '';
-  // 연수 카드는 이수 시간만 간단히 표시 (구분·방식·학점 칩 생략)
-  const detail = (r.category === 'training' ? ['hours'] : (c.detailKeys || []))
+  const detail = (c.detailKeys || [])
     .filter((k) => k !== 'trainingCategory')
     .map((k) => fmtValue(getField(c, k), r[k]))
     .filter(Boolean)
